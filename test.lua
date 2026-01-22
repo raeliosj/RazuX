@@ -1,229 +1,31 @@
---[[ 
-    💎 DVN LOGGER v9.2 — SPECIAL TARGET EDITION
-    Features:
-    - FOCUS: Added "Sacred Guardian Squid" & "GEMSTONE Ruby" detection by NAME.
-    - CLEAN: Removed Common, Uncommon, Rare filters.
-    - DEFAULT: All toggles start OFF (Silent Start).
-    - UI: Integrated Focus Menu into Settings.
-]]
 
--- SERVICES
 local Players = game:GetService("Players")
-local HttpService = game:GetService("HttpService")
-local TextChatService = game:GetService("TextChatService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
+local GuiService = game:GetService("GuiService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
 local TweenService = game:GetService("TweenService")
-local RunService = game:GetService("RunService")
-
 local LocalPlayer = Players.LocalPlayer or Players.PlayerAdded:Wait()
 local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
-local req = http_request or request or (fluxus and fluxus.request) or (getgenv and getgenv().request) or (syn and syn.request)
 
 -- GUI PARENT SAFE
 local GUI_PARENT = (typeof(gethui) == "function" and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
--- ====================================================================
--- 1. LOGGER SETTINGS & LOGIC
--- ====================================================================
-local SETTINGS = {
-    WebhookURL = "",
-    LogFish = false, -- Default OFF
-    LogJoinLeave = false -- Default OFF
-}
-
--- CONFIG DATA
-local WEBHOOK_NAME = "Babu DVN"
-local WEBHOOK_AVATAR = "https://cdn.discordapp.com/attachments/1451798194928353437/1463570214829555878/profil_bot.png?ex=69724f7b&is=6970fdfb&hm=a5c01f6fd791c0c8e58ca6732eba77b1a21256f63329654d99d4b24498e9bc6d&"
-
--- [UPDATE] Removed Common/Uncommon/Rare. All Default OFF.
-local RARITY_CONFIG = {
-    Epic      = { Enabled = false, Color = 0xB373F8, Icon = "🟣" },
-    Legendary = { Enabled = false, Color = 0xFFB92B, Icon = "🟡" },
-    Mythic    = { Enabled = false, Color = 0xFF1919, Icon = "🔴" },
-    Secret    = { Enabled = false, Color = 0x18FF98, Icon = "💎" },
-}
-
--- [NEW] FOCUS FISH CONFIG (Default OFF)
-local FOCUS_FISH = {
-    ["Sacred Guardian Squid"] = { Enabled = false, Color = 0x00FBFF }, -- Cyan
-    ["GEMSTONE Ruby"]         = { Enabled = false, Color = 0xFF0040 }, -- Ruby Red
-    ["GEMSTONE Shiny Ruby"]   = { Enabled = false, Color = 0xFF0040 }, -- Ruby Red
-    ["GEMSTONE Big Ruby"]     = { Enabled = false, Color = 0xFF0040 }  -- Ruby Red
-}
-
-local RGB_RARITY = {
-    ["179,115,248"] = "Epic", ["255,185,43"] = "Legendary", 
-    ["255,25,25"] = "Mythic", ["24,255,152"] = "Secret"
-}
-
--- UTIL FUNCTIONS
-local function stripRichText(t) return t:gsub("<.->", "") end
-
-local function extractDisplayName(text)
-    local clean = stripRichText(text)
-    return clean:match("^%[Server%]:%s*(.-)%s*obtained") or clean:match("^(.-)%s*obtained") or "Unknown"
-end
-
-local function detectChance(t) return t:match("1 in ([%dKMB]+)") or "?" end
-
-local function detectRarity(text)
-    local r,g,b = text:match("rgb%((%d+),%s*(%d+),%s*(%d+)%)")
-    -- Jika warna tidak ada di list (misal Common/Uncommon), kembalikan nil atau Other
-    return r and (RGB_RARITY[r..","..g..","..b] or "Other") or "Other"
-end
-
-local function detectFishNameAndWeight(text)
-    local clean = stripRichText(text)
-    local openParen = clean:match("^.*()%(")
-    local fish, weight
-    if openParen then
-        local fishPart = clean:sub(1, openParen - 1)
-        local weightPart = clean:sub(openParen + 1)
-        fish = fishPart:match("obtained%s+a[n]?%s+(.+)") or fishPart:match("obtained%s+(.+)")
-        weight = weightPart:match("^(.-)%)")
-    else
-        fish = clean:match("obtained%s+a[n]?%s+(.+)") or clean:match("obtained%s+(.+)")
-        weight = "-"
-    end
-    -- Trim trailing spaces
-    return (fish and fish:gsub("%s+$", "") or "Unknown Fish"), (weight or "-")
-end
-
--- WEBHOOK FUNCTIONS
-local function send(payload)
-    if SETTINGS.WebhookURL == "" then
-        warn("⚠️ Webhook URL is empty! Check Settings.")
-        return
-    end
-    if not req then return end
-
-    -- [[ MAGIC FIX: LEGACY DOMAIN ]]
-    local finalURL = SETTINGS.WebhookURL:gsub("discord.com", "discordapp.com")
-
-    pcall(function()
-        req({ Url = finalURL, Method = "POST", Headers = { ["Content-Type"] = "application/json", ["User-Agent"] = "Roblox/Linux" }, Body = HttpService:JSONEncode(payload) })
-    end)
-end
-
-local function testWebhook()
-    local executor = (identifyexecutor and identifyexecutor()) or "Unknown Client"
-    send({ 
-        username = WEBHOOK_NAME, 
-        avatar_url = WEBHOOK_AVATAR, 
-        embeds = {{ 
-            title = "💎 DVN HUB • SYSTEM ONLINE", 
-            description = "```ini\n[ STATUS: CONNECTED ]\nWaiting for targets...```", 
-            color = 0x2B2D31, 
-            thumbnail = { url = WEBHOOK_AVATAR },
-            fields = {
-                { name = "👤 User Session", value = "**" .. LocalPlayer.DisplayName .. "**\n`@" .. LocalPlayer.Name .. "`", inline = true },
-                { name = "💻 Client Info", value = "**Exec:** " .. executor .. "\n**Ping:** " .. math.floor(LocalPlayer:GetNetworkPing() * 1000) .. "ms", inline = true },
-                { name = "🛡️ Security", value = "✅ TextSource Verify\n✅ Anti-Spoof v10", inline = true }
-            },
-            footer = { text = "Babu DVN • System" }, 
-            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") 
-        }} 
-    })
-end
-
-local function sendFish(data)
-    -- 1. Check Priority: FOCUS FISH (ByName)
-    local focusData = FOCUS_FISH[data.Fish]
-    if focusData and focusData.Enabled then
-        send({ 
-            username = WEBHOOK_NAME, 
-            avatar_url = WEBHOOK_AVATAR, 
-            embeds = {{ 
-                title = "🚨 TARGET ACQUIRED! 🚨", 
-                description = "**👑 CAUGHT: " .. data.Fish .. " 👑**", 
-                color = focusData.Color, 
-                thumbnail = { url = WEBHOOK_AVATAR },
-                fields = { 
-                    { name = "👤 Player", value = "`"..data.Player.."`", inline = true }, 
-                    { name = "⚖️ Weight", value = "`"..data.Weight.."`", inline = true }, 
-                    { name = "🎲 Chance", value = "`1 in "..data.Chance.."`", inline = true } 
-                }, 
-                footer = { text = "Babu DVN • Focus Tracker" }, 
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") 
-            }} 
-        })
-        return -- Stop here, don't double log
-    end
-
-    -- 2. Check Secondary: RARITY
-    local cfg = RARITY_CONFIG[data.Rarity]
-    if cfg and cfg.Enabled then
-        send({ 
-            username = WEBHOOK_NAME, 
-            avatar_url = WEBHOOK_AVATAR, 
-            embeds = {{ 
-                title = cfg.Icon.." "..data.Rarity.." Catch!", 
-                description = "A rare fish has been caught!", 
-                color = cfg.Color, 
-                fields = { 
-                    { name = "👤 Player", value = "`"..data.Player.."`", inline = true }, 
-                    { name = "🐟 Fish", value = "**"..data.Fish.."**", inline = true }, 
-                    { name = "⚖️ Weight", value = "`"..data.Weight.."`", inline = true }, 
-                    { name = "🎲 Chance", value = "`1 in "..data.Chance.."`", inline = true } 
-                }, 
-                footer = { text = "Babu DVN • Fish Logger" }, 
-                timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") 
-            }} 
-        })
-    end
-end
-
-local function sendJoinLeave(player, joined)
-    if not SETTINGS.LogJoinLeave then return end
-    send({ username = WEBHOOK_NAME, avatar_url = WEBHOOK_AVATAR, embeds = {{ title = joined and "👋 Player Joined" or "🚪 Player Left", description = "**"..player.DisplayName.."** (@"..player.Name..")", color = joined and 0x2ECC71 or 0xE74C3C, footer = { text = "Babu DVN • Server Activity" }, timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ") }} })
-end
-
--- LISTENERS
-TextChatService.OnIncomingMessage = function(msg)
-    if not SETTINGS.LogFish then return end
-    if not msg.Text then return end
-    if msg.TextSource then return end -- Anti Spoof
-    if not msg.Text:find("obtained") then return end
-    
-    local fishName, weight = detectFishNameAndWeight(msg.Text)
-    local rarity = detectRarity(msg.Text)
-    
-    sendFish({ 
-        Player = extractDisplayName(msg.Text), 
-        Fish = fishName, 
-        Weight = weight, 
-        Chance = detectChance(msg.Text), 
-        Rarity = rarity 
-    })
-end
-
-Players.PlayerAdded:Connect(function(player) sendJoinLeave(player, true) end)
-Players.PlayerRemoving:Connect(function(player) sendJoinLeave(player, false) end)
-
--- ====================================================================
--- 2. UI DVN SETUP (GUI CODE)
--- ====================================================================
-
 -- CLEANUP OLD GUI
-if GUI_PARENT:FindFirstChild("DVN_HUB_LOGGER") then
-    GUI_PARENT.DVN_HUB_LOGGER:Destroy()
+if GUI_PARENT:FindFirstChild("DVN_INVENTORY") then
+    GUI_PARENT.DVN_INVENTORY:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "DVN_HUB_LOGGER"
+ScreenGui.Name = "DVN_INVENTORY"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-ScreenGui.DisplayOrder = 10000
+ScreenGui.DisplayOrder = 10001 -- Above Main
 ScreenGui.Parent = GUI_PARENT
 ScreenGui.ResetOnSpawn = false
 
--- UI CONFIG
-local Viewport = Camera.ViewportSize
-local StartWidth = math.clamp(Viewport.X * 0.40, 350, 600)
-local StartHeight = math.clamp(Viewport.Y * 0.40, 250, 500)
-local DEFAULT_SIZE = UDim2.new(0, StartWidth, 0, StartHeight)
-local MIN_SIZE = Vector2.new(350, 240)
-local MINIMIZED_SIZE = UDim2.new(0, 250, 0, 32)
-
+-- UI CONSTANTS
+local WIDTH = 280
+local HEIGHT = 350
 local MAIN_BG = Color3.fromRGB(15, 15, 15)
 local ELEMENT_BG = Color3.fromRGB(30, 30, 30)
 local ACCENT_COLOR = Color3.fromRGB(255, 255, 255)
@@ -233,170 +35,540 @@ local TEXT_DIM = Color3.fromRGB(120, 120, 120)
 -- MAIN FRAME
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = DEFAULT_SIZE
-MainFrame.Position = UDim2.new(0.5, 0, 0.45, 0)
-MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+MainFrame.Size = UDim2.new(0, WIDTH, 0, HEIGHT)
+MainFrame.Position = UDim2.new(0.85, -WIDTH, 0.5, -HEIGHT/2) -- Default to Right Side
 MainFrame.BackgroundColor3 = MAIN_BG
 MainFrame.BackgroundTransparency = 0.05
 MainFrame.BorderSizePixel = 0
 MainFrame.ClipsDescendants = true
 MainFrame.Parent = ScreenGui
 
-local MainCorner = Instance.new("UICorner"); MainCorner.CornerRadius = UDim.new(0, 6); MainCorner.Parent = MainFrame
-local MainStroke = Instance.new("UIStroke"); MainStroke.Color = ACCENT_COLOR; MainStroke.Transparency = 0.5; MainStroke.Thickness = 1; MainStroke.Parent = MainFrame
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 6)
+MainCorner.Parent = MainFrame
 
-local MainGradient = Instance.new("UIGradient")
-MainGradient.Rotation = 45
-MainGradient.Color = ColorSequence.new{ ColorSequenceKeypoint.new(0.0, Color3.fromRGB(255, 255, 255)), ColorSequenceKeypoint.new(1.0, Color3.fromRGB(150, 150, 150)) }
-MainGradient.Parent = MainFrame
+local MainStroke = Instance.new("UIStroke")
+MainStroke.Color = ACCENT_COLOR
+MainStroke.Transparency = 0.5
+MainStroke.Thickness = 1
+MainStroke.Parent = MainFrame
 
 -- HEADER
-local Header = Instance.new("Frame", MainFrame); Header.Name = "Header"; Header.Size = UDim2.new(1, 0, 0, 32); Header.BackgroundTransparency = 1
-local Title = Instance.new("TextLabel", Header); Title.Text = "DVN LOGGER"; Title.Size = UDim2.new(0, 200, 1, 0); Title.Position = UDim2.new(0, 12, 0, 0); Title.BackgroundTransparency = 1; Title.TextColor3 = TEXT_COLOR; Title.Font = Enum.Font.GothamBold; Title.TextSize = 16; Title.TextXAlignment = Enum.TextXAlignment.Left
-local MinBtn = Instance.new("TextButton", Header); MinBtn.Name = "MinBtn"; MinBtn.Size = UDim2.new(0, 32, 1, 0); MinBtn.Position = UDim2.new(1, -32, 0, 0); MinBtn.BackgroundTransparency = 1; MinBtn.Text = "-"; MinBtn.TextColor3 = TEXT_COLOR; MinBtn.Font = Enum.Font.GothamBold; MinBtn.TextSize = 20
-local HeaderLine = Instance.new("Frame", Header); HeaderLine.Size = UDim2.new(1, 0, 0, 1); HeaderLine.Position = UDim2.new(0, 0, 1, -1); HeaderLine.BackgroundColor3 = ACCENT_COLOR; HeaderLine.BackgroundTransparency = 0.8; HeaderLine.BorderSizePixel = 0
-local LineGradient = Instance.new("UIGradient", HeaderLine); LineGradient.Transparency = NumberSequence.new{ NumberSequenceKeypoint.new(0.0, 1), NumberSequenceKeypoint.new(0.5, 0.2), NumberSequenceKeypoint.new(1.0, 1) }
+local Header = Instance.new("Frame")
+Header.Size = UDim2.new(1, 0, 0, 32)
+Header.BackgroundTransparency = 1
+Header.Parent = MainFrame
 
--- BODY
-local Body = Instance.new("Frame", MainFrame); Body.Name = "Body"; Body.Size = UDim2.new(1, 0, 1, -32); Body.Position = UDim2.new(0, 0, 0, 32); Body.BackgroundTransparency = 1; Body.ClipsDescendants = true
-local Sidebar = Instance.new("Frame", Body); Sidebar.Size = UDim2.new(0.28, 0, 1, 0); Sidebar.BackgroundTransparency = 1
-local SideLayout = Instance.new("UIListLayout", Sidebar); SideLayout.Padding = UDim.new(0, 2); SideLayout.SortOrder = Enum.SortOrder.LayoutOrder; SideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-local SidePad = Instance.new("UIPadding", Sidebar); SidePad.PaddingTop = UDim.new(0, 8)
-local SepLine = Instance.new("Frame", Body); SepLine.Size = UDim2.new(0, 1, 1, 0); SepLine.Position = UDim2.new(0.28, 0, 0, 0); SepLine.BackgroundColor3 = ACCENT_COLOR; SepLine.BackgroundTransparency = 0.8; SepLine.BorderSizePixel = 0
-local Content = Instance.new("Frame", Body); Content.Size = UDim2.new(0.72, 0, 1, 0); Content.Position = UDim2.new(0.28, 0, 0, 0); Content.BackgroundTransparency = 1; Content.ClipsDescendants = true
+local Title = Instance.new("TextLabel")
+Title.Text = "DVN INVENTORY"
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.TextColor3 = TEXT_COLOR
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 14
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Header
 
--- TABS
-local Tabs = {"Info", "Dashboard", "Settings"}
-local TabFrames = {}
-local TabButtons = {}
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Text = "X"
+CloseBtn.Size = UDim2.new(0, 32, 1, 0)
+CloseBtn.Position = UDim2.new(1, -32, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
+CloseBtn.Font = Enum.Font.GothamBold
+CloseBtn.TextSize = 14
+CloseBtn.Parent = Header
+CloseBtn.MouseButton1Click:Connect(function() ScreenGui:Destroy() end)
 
-local function SwitchTab(activeName)
-    for name, frame in pairs(TabFrames) do frame.Visible = (name == activeName) end
-    for name, btn in pairs(TabButtons) do
-        btn.TextColor3 = (name == activeName) and TEXT_COLOR or TEXT_DIM
-        btn.BackgroundTransparency = (name == activeName) and 0.9 or 1
+-- CONTENT LIST
+local Content = Instance.new("Frame")
+Content.Size = UDim2.new(1, -20, 1, -80)
+Content.Position = UDim2.new(0, 10, 0, 40)
+Content.BackgroundTransparency = 1
+Content.Parent = MainFrame
+
+local Scroll = Instance.new("ScrollingFrame")
+Scroll.Size = UDim2.new(1, 0, 1, 0)
+Scroll.BackgroundTransparency = 1
+Scroll.ScrollBarThickness = 3
+Scroll.ScrollBarImageColor3 = ACCENT_COLOR
+Scroll.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+Scroll.Parent = Content
+
+local ListLayout = Instance.new("UIListLayout")
+ListLayout.Padding = UDim.new(0, 4)
+ListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+ListLayout.Parent = Scroll
+
+-- WEATHER FRAME (HIDDEN)
+local WeatherFrame = Instance.new("Frame")
+WeatherFrame.Size = UDim2.new(1, -20, 1, -80)
+WeatherFrame.Position = UDim2.new(0, 10, 0, 40)
+WeatherFrame.BackgroundTransparency = 1
+WeatherFrame.Visible = false
+WeatherFrame.Parent = MainFrame
+
+local WeatherListLayout = Instance.new("UIListLayout")
+WeatherListLayout.Padding = UDim.new(0, 5)
+WeatherListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+WeatherListLayout.Parent = WeatherFrame
+
+local WeatherDB = {
+    {Name = "None", Id = 0},
+    {Name = "Clear", Id = 1},
+    {Name = "Rain", Id = 2},
+    {Name = "Fog", Id = 3},
+    {Name = "Wind", Id = 4},
+    {Name = "Storm", Id = 5},
+    {Name = "Snow", Id = 6},
+    {Name = "Cloudy", Id = 7},
+    {Name = "Aurora", Id = 8}
+}
+
+local Slots = {1, 1, 1} -- Default indices (None)
+local AutoBuyActive = false
+
+local function CreateCycleButton(idx)
+    local Btn = Instance.new("TextButton")
+    Btn.Size = UDim2.new(1, 0, 0, 35)
+    Btn.BackgroundColor3 = ELEMENT_BG
+    Btn.TextColor3 = TEXT_COLOR
+    Btn.Font = Enum.Font.GothamBold
+    Btn.TextSize = 12
+    Btn.Text = "Slot " .. idx .. ": " .. WeatherDB[Slots[idx]].Name
+    Btn.Parent = WeatherFrame
+    Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
+    
+    Btn.MouseButton1Click:Connect(function()
+        Slots[idx] = Slots[idx] + 1
+        if Slots[idx] > #WeatherDB then Slots[idx] = 1 end
+        Btn.Text = "Slot " .. idx .. ": " .. WeatherDB[Slots[idx]].Name
+    end)
+end
+
+CreateCycleButton(1)
+CreateCycleButton(2)
+CreateCycleButton(3)
+
+local ToggleAutoBtn = Instance.new("TextButton")
+ToggleAutoBtn.Size = UDim2.new(1, 0, 0, 40)
+ToggleAutoBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+ToggleAutoBtn.TextColor3 = ACCENT_COLOR
+ToggleAutoBtn.Font = Enum.Font.GothamBold
+ToggleAutoBtn.TextSize = 14
+ToggleAutoBtn.Text = "AUTO BUY: OFF"
+ToggleAutoBtn.Parent = WeatherFrame
+Instance.new("UICorner", ToggleAutoBtn).CornerRadius = UDim.new(0, 4)
+
+ToggleAutoBtn.MouseButton1Click:Connect(function()
+    AutoBuyActive = not AutoBuyActive
+    if AutoBuyActive then
+        ToggleAutoBtn.Text = "AUTO BUY: ON"
+        ToggleAutoBtn.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
+    else
+        ToggleAutoBtn.Text = "AUTO BUY: OFF"
+        ToggleAutoBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    end
+end)
+
+-- FOOTER (ACTIONS)
+local Footer = Instance.new("Frame")
+Footer.Size = UDim2.new(1, -20, 0, 30)
+Footer.Position = UDim2.new(0, 10, 1, -40)
+Footer.BackgroundTransparency = 1
+Footer.Parent = MainFrame
+
+local RefreshBtn = Instance.new("TextButton")
+RefreshBtn.Size = UDim2.new(0.32, 0, 1, 0)
+RefreshBtn.Position = UDim2.new(0, 0, 0, 0)
+RefreshBtn.BackgroundColor3 = ELEMENT_BG
+RefreshBtn.Text = "REFRESH"
+RefreshBtn.TextColor3 = TEXT_COLOR
+RefreshBtn.Font = Enum.Font.GothamBold
+RefreshBtn.TextSize = 10
+RefreshBtn.Parent = Footer
+Instance.new("UICorner", RefreshBtn).CornerRadius = UDim.new(0, 4)
+
+local WeatherBtn = Instance.new("TextButton")
+WeatherBtn.Size = UDim2.new(0.32, 0, 1, 0)
+WeatherBtn.Position = UDim2.new(0.34, 0, 0, 0)
+WeatherBtn.BackgroundColor3 = ELEMENT_BG
+WeatherBtn.Text = "WEATHER"
+WeatherBtn.TextColor3 = TEXT_COLOR
+WeatherBtn.Font = Enum.Font.GothamBold
+WeatherBtn.TextSize = 10
+WeatherBtn.Parent = Footer
+Instance.new("UICorner", WeatherBtn).CornerRadius = UDim.new(0, 4)
+
+local CopyBtn = Instance.new("TextButton")
+CopyBtn.Size = UDim2.new(0.32, 0, 1, 0)
+CopyBtn.Position = UDim2.new(0.68, 0, 0, 0)
+CopyBtn.BackgroundColor3 = ELEMENT_BG
+CopyBtn.Text = "COPY"
+CopyBtn.TextColor3 = TEXT_COLOR
+CopyBtn.TextSize = 10
+CopyBtn.Parent = Footer
+Instance.new("UICorner", CopyBtn).CornerRadius = UDim.new(0, 4)
+
+WeatherBtn.MouseButton1Click:Connect(function()
+    local isWeather = WeatherFrame.Visible
+    WeatherFrame.Visible = not isWeather
+    Content.Visible = isWeather
+    Title.Text = isWeather and "DVN INVENTORY" or "WEATHER AUTO BUY"
+end)
+
+-- LOGIC FUNCTIONS
+local function ClickGui(obj)
+    if not obj then return end
+    
+    -- [DEBUG] Visualisasi Klik (Kotak Merah)
+    local debugBox = Instance.new("Frame")
+    debugBox.Name = "DebugClickBox"
+    debugBox.Size = UDim2.new(0, obj.AbsoluteSize.X, 0, obj.AbsoluteSize.Y)
+    debugBox.Position = UDim2.new(0, obj.AbsolutePosition.X, 0, obj.AbsolutePosition.Y)
+    debugBox.BackgroundTransparency = 1
+    debugBox.Parent = ScreenGui
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = Color3.fromRGB(255, 0, 0)
+    stroke.Thickness = 4
+    stroke.Parent = debugBox
+    game:GetService("Debris"):AddItem(debugBox, 2)
+
+    -- [FIX] Gunakan GuiInset untuk koordinat akurat (Otomatis deteksi ukuran TopBar)
+    local inset = GuiService:GetGuiInset()
+    local center = obj.AbsolutePosition + (obj.AbsoluteSize / 2) + inset
+    VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
+    task.wait(0.1)
+    VirtualInputManager:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+    
+    -- Method 2: Direct Event Firing (Fallback for Executors)
+    -- Jika klik virtual gagal, kita coba paksa trigger event-nya menggunakan getconnections
+    if typeof(getconnections) == "function" then
+        local btn = obj
+        if not btn:IsA("GuiButton") then
+            btn = obj:FindFirstChildWhichIsA("GuiButton", true)
+        end
+        
+        if btn then
+            for _, event in ipairs({"MouseButton1Click", "MouseButton1Down", "Activated"}) do
+                for _, conn in pairs(getconnections(btn[event])) do
+                    conn:Fire()
+                end
+            end
+        end
     end
 end
 
-for i, name in ipairs(Tabs) do
-    local Page = Instance.new("ScrollingFrame", Content); Page.Name = name; Page.Size = UDim2.new(1, -10, 1, -10); Page.Position = UDim2.new(0, 5, 0, 5); Page.BackgroundTransparency = 1; Page.Visible = false; Page.ScrollBarThickness = 2; Page.ScrollBarImageColor3 = ACCENT_COLOR; Page.AutomaticCanvasSize = Enum.AutomaticSize.Y; Page.CanvasSize = UDim2.new(0,0,0,0)
-    local PLayout = Instance.new("UIListLayout", Page); PLayout.Padding = UDim.new(0, 5); PLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    local PPad = Instance.new("UIPadding", Page); PPad.PaddingTop = UDim.new(0, 5); PPad.PaddingLeft = UDim.new(0, 5); PPad.PaddingRight = UDim.new(0, 5)
-    TabFrames[name] = Page
-    local Btn = Instance.new("TextButton", Sidebar); Btn.Name = name; Btn.LayoutOrder = i; Btn.Size = UDim2.new(1, -16, 0, 28); Btn.BackgroundColor3 = Color3.fromRGB(255, 255, 255); Btn.BackgroundTransparency = 1; Btn.Text = name; Btn.Font = Enum.Font.GothamBold; Btn.TextSize = 14; Btn.TextColor3 = TEXT_DIM
-    local BCorner = Instance.new("UICorner", Btn); BCorner.CornerRadius = UDim.new(0, 4)
-    Btn.MouseButton1Click:Connect(function() SwitchTab(name) end)
-    TabButtons[name] = Btn
+local function GetItems()
+    local items = {}
+    
+    local function add(name, qty)
+        qty = qty or 1
+        if name and name ~= "" then
+            items[name] = (items[name] or 0) + qty
+        end
+    end
+
+    -- [DISABLED] 1. Scan Standard Backpack (Tools) - Agar Rod tidak masuk list
+    -- local function scanTools(loc)
+    --     for _, v in pairs(loc:GetChildren()) do
+    --         if v:IsA("Tool") then
+    --             add(v.Name)
+    --         end
+    --     end
+    -- end
+    -- if LocalPlayer:FindFirstChild("Backpack") then scanTools(LocalPlayer.Backpack) end
+    -- if LocalPlayer.Character then scanTools(LocalPlayer.Character) end
+    
+    -- 2. Scan PlayerGui UI (Targeted Scan - Only Fish Inventory & Backpack)
+    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if pGui then
+        -- Helper: Cek apakah object benar-benar terlihat di layar (Recursive check)
+        local function isVisible(obj)
+            local curr = obj
+            while curr and curr ~= pGui do
+                if curr:IsA("GuiObject") and not curr.Visible then return false end
+                if curr:IsA("ScreenGui") and not curr.Enabled then return false end
+                curr = curr.Parent
+            end
+            return true
+        end
+
+        -- Helper to extract name from a Tile
+        local function scanTile(tile)
+            -- [FILTER] Hanya ambil item yang Visible (Aktif di layar)
+            if not isVisible(tile) then return end
+            
+            -- Cek ItemName langsung (Inventory Style)
+            local nameLabel = tile:FindFirstChild("ItemName")
+            
+            -- Cek ItemName dalam Tags (Backpack Style)
+            if not nameLabel then
+                local inner = tile:FindFirstChild("Inner")
+                if inner then
+                    local tags = inner:FindFirstChild("Tags")
+                    if tags then nameLabel = tags:FindFirstChild("ItemName") end
+                end
+            end
+
+            if nameLabel and nameLabel:IsA("TextLabel") and nameLabel.Text ~= "" and nameLabel.Text ~= "Item Name" and nameLabel.Text ~= "Fish Name" then
+                local fullName = nameLabel.Text
+                
+                -- Cek Variant (Sibling dari ItemName atau di dalam Variant folder)
+                -- Struktur Inventory: Tile -> Variant -> ItemName
+                local variant = tile:FindFirstChild("Variant")
+                if variant then
+                    local varLabel = variant:FindFirstChild("ItemName")
+                    if varLabel and varLabel:IsA("TextLabel") and varLabel.Text ~= "" then
+                        fullName = varLabel.Text .. " " .. fullName
+                    end
+                end
+                
+                add(fullName)
+            end
+        end
+
+        -- Target A: Main Inventory
+        -- Path: PlayerGui.Inventory.Main.Content (Scan Recursive untuk menangkap semua halaman)
+        local inv = pGui:FindFirstChild("Inventory")
+        if inv and inv:FindFirstChild("Main") and inv.Main:FindFirstChild("Content") then
+            -- Scan seluruh Content agar tidak peduli nama halamannya (Pages/Fish/dll)
+            for _, v in pairs(inv.Main.Content:GetDescendants()) do
+                if v.Name == "ItemName" and v.Parent then
+                    -- v.Parent adalah Tile atau Tags, kita scan tile-nya
+                    scanTile(v.Parent) -- [FIX] v.Parent adalah Tile
+                end
+            end
+        end
+
+        -- [DISABLED] Target B: Backpack/Hotbar - Agar Rod tidak masuk list
+        -- local backpack = pGui:FindFirstChild("Backpack")
+        -- if backpack and backpack:FindFirstChild("Display") then
+        --     for _, tile in pairs(backpack.Display:GetChildren()) do
+        --         scanTile(tile)
+        --     end
+        -- end
+    end
+
+    -- 3. Scan Custom Inventory (Folder inside Player)
+    -- Mencari folder umum: "Inventory", "FishInventory", "Bag", "Fish"
+    local customFolders = {"Inventory", "FishInventory", "Bag", "Fish"}
+    for _, folderName in ipairs(customFolders) do
+        local folder = LocalPlayer:FindFirstChild(folderName)
+        if folder then
+            for _, v in pairs(folder:GetChildren()) do
+                -- Cek StringValue (Slot -> Nama Ikan)
+                if v:IsA("StringValue") then
+                    add(v.Value)
+                -- Cek IntValue (Nama Ikan -> Jumlah)
+                elseif v:IsA("IntValue") then
+                    add(v.Name, v.Value)
+                -- Cek Object biasa (Model/Folder/Part)
+                elseif not v:IsA("Script") and not v:IsA("LocalScript") then
+                    add(v.Name)
+                end
+            end
+        end
+    end
+
+    return items
 end
 
--- HELPER FUNCTIONS
-local function GetOrder(parent) return #parent:GetChildren() end
-function CreateSection(parent, text)
-    local Lab = Instance.new("TextLabel", parent); Lab.LayoutOrder = GetOrder(parent); Lab.Text = text:upper(); Lab.Size = UDim2.new(1, 0, 0, 24); Lab.BackgroundTransparency = 1; Lab.TextColor3 = ACCENT_COLOR; Lab.TextTransparency = 0.4; Lab.Font = Enum.Font.GothamBold; Lab.TextSize = 12; Lab.TextXAlignment = Enum.TextXAlignment.Left
+local function UpdateList()
+    for _, v in pairs(Scroll:GetChildren()) do
+        if v:IsA("Frame") then v:Destroy() end
+    end
+    
+    Title.Text = "SCANNING..."
+    
+    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    local invGui = pGui and pGui:FindFirstChild("Inventory")
+    local invMain = invGui and invGui:FindFirstChild("Main")
+    local wasVisible = invMain and invMain.Visible
+    
+    local data = {}
+
+    if wasVisible then
+        -- Jika sudah terbuka, langsung scan
+        data = GetItems()
+    else
+        -- Jika tertutup, lakukan prosedur Buka -> Scan -> Tutup
+        Title.Text = "OPENING BAG..."
+        
+        -- Hitung baseline item (noise) sebelum buka
+        local initialData = GetItems()
+        local initialCount = 0
+        for _ in pairs(initialData) do initialCount = initialCount + 1 end
+        
+        -- 1. Coba Klik Tombol Tas (Prioritas Utama agar script game jalan)
+        local invBtn = nil
+        if pGui and pGui:FindFirstChild("Backpack") and pGui.Backpack:FindFirstChild("Display") then
+            invBtn = pGui.Backpack.Display:FindFirstChild("Inventory")
+        end
+        if invBtn then ClickGui(invBtn) end
+        task.wait(0.5) -- Tunggu animasi game
+        
+        -- 2. Force Open jika masih tertutup (Backup)
+        if invGui then
+            if not invGui.Enabled then invGui.Enabled = true end
+            if invMain and not invMain.Visible then invMain.Visible = true end
+        end
+        
+        task.wait(0.2) -- Tunggu UI render sebentar
+        
+        local fishTab = invMain 
+            and invMain:FindFirstChild("Top") 
+            and invMain.Top:FindFirstChild("Options") 
+            and invMain.Top.Options:FindFirstChild("Fish")
+            
+        if fishTab then 
+            ClickGui(fishTab)
+            task.wait(0.2) -- Tunggu tab berpindah
+        end
+
+        -- Tunggu sampai item bertambah (Max 2.5 detik)
+        for i = 1, 25 do
+            task.wait(0.1)
+            data = GetItems() -- Update data terus menerus
+            local check = data
+            local c = 0
+            for _ in pairs(check) do c = c + 1 end
+            -- Jika item bertambah (karena scan sekarang spesifik, penambahan 1 pun berarti berhasil load)
+            if c > initialCount then break end 
+        end
+        
+        -- Pastikan data terisi terakhir kali
+        if next(data) == nil then data = GetItems() end
+
+        -- [RESTORE] Tutup kembali (Force Close)
+        if invMain then
+            invMain.Visible = false
+        end
+    end
+
+    local sortedNames = {}
+    for name, _ in pairs(data) do table.insert(sortedNames, name) end
+    table.sort(sortedNames)
+    
+    local totalCount = 0
+    
+    for _, name in ipairs(sortedNames) do
+        local count = data[name]
+        totalCount = totalCount + count
+        
+        local ItemFrame = Instance.new("Frame")
+        ItemFrame.Size = UDim2.new(1, 0, 0, 24)
+        ItemFrame.BackgroundColor3 = ELEMENT_BG
+        ItemFrame.BackgroundTransparency = 0.5
+        ItemFrame.Parent = Scroll
+        Instance.new("UICorner", ItemFrame).CornerRadius = UDim.new(0, 4)
+        
+        local NameLab = Instance.new("TextLabel")
+        NameLab.Size = UDim2.new(0.7, 0, 1, 0)
+        NameLab.Position = UDim2.new(0, 8, 0, 0)
+        NameLab.BackgroundTransparency = 1
+        NameLab.Text = name
+        NameLab.TextColor3 = TEXT_COLOR
+        NameLab.Font = Enum.Font.Gotham
+        NameLab.TextSize = 12
+        NameLab.TextXAlignment = Enum.TextXAlignment.Left
+        NameLab.Parent = ItemFrame
+        
+        local CountLab = Instance.new("TextLabel")
+        CountLab.Size = UDim2.new(0.3, -8, 1, 0)
+        CountLab.Position = UDim2.new(0.7, 0, 0, 0)
+        CountLab.BackgroundTransparency = 1
+        CountLab.Text = "x" .. count
+        CountLab.TextColor3 = ACCENT_COLOR
+        CountLab.Font = Enum.Font.GothamBold
+        CountLab.TextSize = 12
+        CountLab.TextXAlignment = Enum.TextXAlignment.Right
+        CountLab.Parent = ItemFrame
+    end
+    
+    Title.Text = "DVN INVENTORY (" .. totalCount .. ")"
 end
-function CreateButton(parent, text, callback)
-    local Btn = Instance.new("TextButton", parent); Btn.LayoutOrder = GetOrder(parent); Btn.Size = UDim2.new(1, 0, 0, 30); Btn.BackgroundColor3 = ELEMENT_BG; Btn.Text = text; Btn.TextColor3 = TEXT_COLOR; Btn.Font = Enum.Font.GothamBold; Btn.TextSize = 14
-    local Corner = Instance.new("UICorner", Btn); Corner.CornerRadius = UDim.new(0, 4)
-    Btn.MouseButton1Click:Connect(function() pcall(callback) end)
-end
-function CreateToggle(parent, text, defaultVal, callback)
-    local Frame = Instance.new("Frame", parent); Frame.LayoutOrder = GetOrder(parent); Frame.Size = UDim2.new(1, 0, 0, 30); Frame.BackgroundColor3 = ELEMENT_BG
-    local Corner = Instance.new("UICorner", Frame); Corner.CornerRadius = UDim.new(0, 4)
-    local Lab = Instance.new("TextLabel", Frame); Lab.Text = text; Lab.Size = UDim2.new(0.7, 0, 1, 0); Lab.Position = UDim2.new(0, 10, 0, 0); Lab.BackgroundTransparency = 1; Lab.TextColor3 = TEXT_COLOR; Lab.Font = Enum.Font.GothamBold; Lab.TextSize = 14; Lab.TextXAlignment = Enum.TextXAlignment.Left
-    local ToggleBtn = Instance.new("TextButton", Frame); ToggleBtn.Size = UDim2.new(0, 36, 0, 18); ToggleBtn.Position = UDim2.new(1, -42, 0.5, -9); ToggleBtn.BackgroundColor3 = defaultVal and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(50, 50, 50); ToggleBtn.Text = ""
-    local TCorner = Instance.new("UICorner", ToggleBtn); TCorner.CornerRadius = UDim.new(1, 0)
-    local Dot = Instance.new("Frame", ToggleBtn); Dot.Size = UDim2.new(0, 14, 0, 14); Dot.Position = defaultVal and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7); Dot.BackgroundColor3 = defaultVal and Color3.fromRGB(30, 30, 30) or Color3.fromRGB(200, 200, 200)
-    local DCorner = Instance.new("UICorner", Dot); DCorner.CornerRadius = UDim.new(1, 0)
-    local on = defaultVal
-    ToggleBtn.MouseButton1Click:Connect(function()
-        on = not on
-        if on then TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play(); TweenService:Create(Dot, TweenInfo.new(0.2), {Position = UDim2.new(1, -16, 0.5, -7), BackgroundColor3 = Color3.fromRGB(30, 30, 30)}):Play()
-        else TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(50, 50, 50)}):Play(); TweenService:Create(Dot, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -7), BackgroundColor3 = Color3.fromRGB(200, 200, 200)}):Play() end
-        pcall(callback, on)
-    end)
-end
-function CreateInput(parent, placeholder, defaultText, callback)
-    local Frame = Instance.new("Frame", parent); Frame.LayoutOrder = GetOrder(parent); Frame.Size = UDim2.new(1, 0, 0, 36); Frame.BackgroundColor3 = ELEMENT_BG
-    local Corner = Instance.new("UICorner", Frame); Corner.CornerRadius = UDim.new(0, 4)
-    local Box = Instance.new("TextBox", Frame); Box.Size = UDim2.new(1, -20, 1, 0); Box.Position = UDim2.new(0, 10, 0, 0); Box.BackgroundTransparency = 1; Box.Text = defaultText or ""; Box.PlaceholderText = placeholder; Box.TextColor3 = TEXT_COLOR; Box.PlaceholderColor3 = TEXT_DIM; Box.Font = Enum.Font.GothamBold; Box.TextSize = 14; Box.TextXAlignment = Enum.TextXAlignment.Left; Box.ClearTextOnFocus = false
-    Box.FocusLost:Connect(function() pcall(callback, Box.Text) end)
-end
 
--- ====================================================================
--- 3. BUILDING THE UI CONTENT
--- ====================================================================
+RefreshBtn.MouseButton1Click:Connect(UpdateList)
 
--- [INFO TAB]
-CreateSection(TabFrames["Info"], "About")
-local InfoTxt = Instance.new("TextLabel", TabFrames["Info"]); InfoTxt.LayoutOrder = GetOrder(TabFrames["Info"]); InfoTxt.Text = "DVN LOGGER v9.2\n\nFocus Tracking enabled for:\n- Sacred Guardian Squid\n- GEMSTONE Ruby\n\nCommon-Rare filters removed."; InfoTxt.Size = UDim2.new(1, 0, 0, 100); InfoTxt.BackgroundTransparency = 1; InfoTxt.TextColor3 = TEXT_DIM; InfoTxt.Font = Enum.Font.GothamBold; InfoTxt.TextSize = 13; InfoTxt.TextXAlignment = Enum.TextXAlignment.Left; InfoTxt.TextWrapped = true
-CreateButton(TabFrames["Info"], "Copy Discord Link", function() setclipboard("https://discord.gg/YOUR_DISCORD_LINK") end)
-
--- [DASHBOARD TAB]
-CreateSection(TabFrames["Dashboard"], "Webhook")
-CreateInput(TabFrames["Dashboard"], "Paste Webhook URL Here...", SETTINGS.WebhookURL, function(text) SETTINGS.WebhookURL = text end)
-CreateButton(TabFrames["Dashboard"], "Test Webhook", testWebhook)
-CreateSection(TabFrames["Dashboard"], "Controls")
-CreateToggle(TabFrames["Dashboard"], "Enable Logger", SETTINGS.LogFish, function(val) SETTINGS.LogFish = val end)
-CreateToggle(TabFrames["Dashboard"], "Join/Leave Logs", SETTINGS.LogJoinLeave, function(val) SETTINGS.LogJoinLeave = val end)
-
--- [SETTINGS TAB - FOCUS & RARITY]
-CreateSection(TabFrames["Settings"], "Specific Target")
-
--- Loop untuk Target Fokus (Sacred & Ruby)
-for fishName, config in pairs(FOCUS_FISH) do
-    CreateToggle(TabFrames["Settings"], "Focus: " .. fishName, config.Enabled, function(val)
-        config.Enabled = val
-        print("🎯 Focus " .. fishName .. ": " .. tostring(val))
-    end)
-end
-
-CreateSection(TabFrames["Settings"], "General Rarity")
-
--- Loop untuk Rarity (Hanya Epic ke atas)
-local RarityOrder = {"Epic", "Legendary", "Mythic", "Secret"}
-
-for _, rarityKey in ipairs(RarityOrder) do
-    local config = RARITY_CONFIG[rarityKey]
-    local displayName = rarityKey
-    if rarityKey == "Legendary" then displayName = "Legend" end
-
-    CreateToggle(TabFrames["Settings"], "Log " .. displayName, config.Enabled, function(val)
-        config.Enabled = val
-    end)
-end
-
--- ====================================================================
--- 4. WINDOW LOGIC
--- ====================================================================
-local HelperLine = Instance.new("TextButton", ScreenGui); HelperLine.Name = "HelperLine"; HelperLine.Text = ""; HelperLine.BackgroundColor3 = ACCENT_COLOR; HelperLine.BorderSizePixel = 0; HelperLine.BackgroundTransparency = 0.3; HelperLine.AnchorPoint = Vector2.new(0.5, 0); HelperLine.ZIndex = MainFrame.ZIndex - 1; Instance.new("UICorner", HelperLine).CornerRadius = UDim.new(1, 0)
-local function UpdateHelperLine()
-    if not MainFrame or not MainFrame.Parent then return end
-    local mainPos = MainFrame.AbsolutePosition; local mainSize = MainFrame.AbsoluteSize; local centerX = mainPos.X + (mainSize.X / 2); local bottomY = mainPos.Y + mainSize.Y
-    HelperLine.Position = UDim2.new(0, centerX, 0, bottomY + 4); HelperLine.Size = UDim2.new(0, mainSize.X * 0.5, 0, 5)
-end
-MainFrame:GetPropertyChangedSignal("AbsolutePosition"):Connect(UpdateHelperLine); MainFrame:GetPropertyChangedSignal("AbsoluteSize"):Connect(UpdateHelperLine); UpdateHelperLine()
-HelperLine.MouseEnter:Connect(function() TweenService:Create(HelperLine, TweenInfo.new(0.2), {BackgroundTransparency = 0}):Play() end)
-HelperLine.MouseLeave:Connect(function() TweenService:Create(HelperLine, TweenInfo.new(0.2), {BackgroundTransparency = 0.3}):Play() end)
-
-local dragging, dragStart, startPos
-local function StartDrag(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = true; dragStart = input.Position; startPos = MainFrame.Position end end
-Header.InputBegan:Connect(StartDrag); HelperLine.InputBegan:Connect(StartDrag)
-UserInputService.InputChanged:Connect(function(input) if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then local delta = input.Position - dragStart; MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y) end end)
-UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then dragging = false end end)
-
-local isMin, lastSize = false, DEFAULT_SIZE
-MinBtn.MouseButton1Click:Connect(function()
-    if isMin then TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = lastSize}):Play(); Body.Visible = true; HelperLine.Visible = true; MinBtn.Text = "-"
-    else lastSize = MainFrame.Size; TweenService:Create(MainFrame, TweenInfo.new(0.3), {Size = MINIMIZED_SIZE}):Play(); Body.Visible = false; HelperLine.Visible = false; MinBtn.Text = "+" end; isMin = not isMin
+CopyBtn.MouseButton1Click:Connect(function()
+    local data = GetItems()
+    local str = "DVN INVENTORY LIST:\n"
+    for name, count in pairs(data) do
+        str = str .. "- " .. name .. " x" .. count .. "\n"
+    end
+    setclipboard(str)
+    CopyBtn.Text = "COPIED!"
+    task.wait(1)
+    CopyBtn.Text = "COPY"
 end)
 
-local ResizeBtn = Instance.new("ImageButton", MainFrame); ResizeBtn.Size = UDim2.new(0, 15, 0, 15); ResizeBtn.Position = UDim2.new(1, -15, 1, -15); ResizeBtn.BackgroundTransparency = 1; ResizeBtn.Image = "rbxassetid://3599185146"; ResizeBtn.ImageTransparency = 0.5; ResizeBtn.ImageColor3 = ACCENT_COLOR
-local resizing, resizeStart, startSize
-ResizeBtn.InputBegan:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then resizing = true; resizeStart = input.Position; startSize = MainFrame.AbsoluteSize end end)
-UserInputService.InputChanged:Connect(function(input) if resizing and input.UserInputType == Enum.UserInputType.MouseMovement then local delta = input.Position - resizeStart; MainFrame.Size = UDim2.new(0, math.max(MIN_SIZE.X, startSize.X + delta.X), 0, math.max(MIN_SIZE.Y, startSize.Y + delta.Y)) end end)
-UserInputService.InputEnded:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseButton1 then resizing = false end end)
+-- AUTO BUY LOOP
+task.spawn(function()
+    local function GetRemote(name)
+        local packages = ReplicatedStorage:FindFirstChild("Packages")
+        if packages then
+            for _, v in pairs(packages:GetDescendants()) do
+                if v:IsA("RemoteFunction") and (v.Name == name or v.Name == "RF/" .. name) then
+                    return v
+                end
+            end
+        end
+        return nil
+    end
 
-SwitchTab("Info")
-MainFrame.Size = UDim2.new(0, 0, 0, 0)
-TweenService:Create(MainFrame, TweenInfo.new(0.6, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {Size = DEFAULT_SIZE}):Play()
-print("DVN LOGGER UI LOADED")
+    while ScreenGui.Parent do
+        if AutoBuyActive then
+            for i = 1, 3 do
+                if not AutoBuyActive then break end
+                local weatherIdx = Slots[i]
+                local weatherData = WeatherDB[weatherIdx]
+                
+                if weatherData.Id > 0 then
+                    local remote = GetRemote("PurchaseWeather")
+                    if remote then
+                        pcall(function() remote:InvokeServer(weatherData.Id, 1) end)
+                    end
+                    task.wait(1.5)
+                end
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- DRAGGING LOGIC
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+Header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+Header.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- INIT
+UpdateList()
+print("RazuX INVENTORY LOADED")
