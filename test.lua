@@ -215,7 +215,7 @@ WeatherBtn.MouseButton1Click:Connect(function()
     local isWeather = WeatherFrame.Visible
     WeatherFrame.Visible = not isWeather
     Content.Visible = isWeather
-    Title.Text = isWeather and "DVN INVENTORY" or "WEATHER AUTO BUY"
+    Title.Text = isWeather and "RazuX INVENTORY" or "WEATHER AUTO BUY"
 end)
 
 -- LOGIC FUNCTIONS
