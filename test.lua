@@ -101,58 +101,96 @@ local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local function SendInventoryToWebhook()
     local url = SettingsState.WebhookFish.Url
-    if not url or url == "" or url == "https://discord.com/api/webhooks/..." then
-        WindUI:Notify({ Title = "Webhook", Content = "Isi Webhook URL dulu di Tab Webhook!", Duration = 3 })
+    if not url or url == "" then
+        WindUI:Notify({ Title = "Webhook", Content = "Silahkan Masukan URL Webhook di TAB Webhook", Duration = 3 })
         return
     end
 
     local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    local items = {}
-    
-    -- Scan Items
+    -- Mapping Rarity FISHIT Murni (1-7)
+    local rarityNames = {
+        [1] = "Common",
+        [2] = "Uncommon",
+        [3] = "Rare",
+        [5] = "Legendary",
+        [6] = "Mythic",
+        [7] = "SECRET"
+    }
+
+    local rarityGroups = {}
+    local totalAll = 0
+
     if pGui and pGui:FindFirstChild("Inventory") then
-        local content = pGui.Inventory.Main.Content
-        for _, v in pairs(content:GetDescendants()) do
-            if v.Name == "ItemName" and v:IsA("TextLabel") and v.Text ~= "" and v.Text ~= "Fish Name" then
-                local name = v.Text
-                items[name] = (items[name] or 0) + 1
+        local content = pGui.Inventory:FindFirstChild("Main") and pGui.Inventory.Main:FindFirstChild("Content")
+        if content then
+            for _, v in pairs(content:GetDescendants()) do
+                if v.Name == "ItemName" and v:IsA("TextLabel") and v.Text ~= "" and v.Text ~= "Item Name" then
+                    local rawName = v.Text
+                    
+                    -- Filter murni cuma Big & Shiny sesuai Fishit
+                    local cleanName = rawName:gsub("Shiny ", ""):gsub("Big ", "")
+                    
+                    -- Tarik data tier dari FishDB di script lu (Line 466)
+                    local tier = 1
+                    if FishDB[cleanName] then
+                        tier = FishDB[cleanName]
+                    end
+
+                    local rName = rarityNames[tier] or "Unknown"
+                    
+                    rarityGroups[rName] = rarityGroups[rName] or {}
+                    rarityGroups[rName][cleanName] = (rarityGroups[rName][cleanName] or 0) + 1
+                    totalAll = totalAll + 1
+                end
             end
         end
     end
 
-    local description = ""
-    local totalFish = 0
-    for name, count in pairs(items) do
-        description = description .. "🔹 **" .. name .. "**: `" .. count .. "`\n"
-        totalFish = totalFish + count
+    if totalAll == 0 then
+        WindUI:Notify({ Title = "Inventory", Content = "Tas kosong!", Duration = 3 })
+        return
     end
 
-    if totalFish == 0 then
-        WindUI:Notify({ Title = "Webhook", Content = "Tas kosong!", Duration = 3 })
-        return
+    local fields = {}
+    -- Urutan: Secret & Mythic di atas biar elit
+    local order = {"SECRET", "Mythic", "Legendary", "Rare", "Uncommon", "Common"}
+    
+    for _, rName in ipairs(order) do
+        if rarityGroups[rName] and next(rarityGroups[rName]) then
+            local listText = ""
+            local subTotal = 0
+            for name, count in pairs(rarityGroups[rName]) do
+                listText = listText .. "• **" .. name .. "** (x" .. count .. ")\n"
+                subTotal = subTotal + count
+            end
+            
+            local emoji = (rName == "SECRET") and "🔱" or (rName == "Mythic" and "💎" or "🐟")
+            table.insert(fields, {
+                ["name"] = emoji .. " " .. rName:upper() .. " | Total: " .. subTotal,
+                ["value"] = listText,
+                ["inline"] = false
+            })
+        end
     end
 
     local data = {
         ["embeds"] = {{
-            ["title"] = "Bag " .. game:GetService("Players").LocalPlayer.Name .. "'s Inventory Scan",
-            ["description"] = description,
-            ["color"] = tonumber(0x00ff00), -- Warna Hijau
-            ["fields"] = {
-                {["name"] = "Total Items", ["value"] = tostring(totalFish), ["inline"] = true}
-            },
-            ["footer"] = { ["text"] = "RazuX Inventory Scanner v1.0" },
+            ["title"] = "Fishit Inventory Report - " .. game:GetService("Players").LocalPlayer.Name,
+            ["color"] = 0x2b2d31,
+            ["fields"] = fields,
+            ["footer"] = { ["text"] = "Total Items: " .. totalAll },
             ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
         }}
     }
 
-    local response = request({
+    request({
         Url = url,
         Method = "POST",
         Headers = {["Content-Type"] = "application/json"},
         Body = game:GetService("HttpService"):JSONEncode(data)
     })
     
-    WindUI:Notify({ Title = "Webhook", Content = "Inventory sent to Discord!", Duration = 3 })
+    WindUI:Notify({ Title = "Inventory", Content = "Sent to Discord!", Duration = 3 })
 end
 local RunService = game:GetService("RunService")
 
@@ -2439,8 +2477,8 @@ local TabSettings = Window:Tab({ Title = "Settings", Icon = "settings" })
 local sectionInv = TabPlayer:Section({ Title = "Inventory Utilities", Opened = true})
 
 sectionInv:Button({
-    Title = "Send Inventory to Discord",
-    Desc = "Kirim daftar isi tas ke Webhook Discord",
+    Title = "Send Inventory to Webhook",
+    Desc = "List Common - SECRET",
     Icon = "send",
     Callback = function()
         SendInventoryToWebhook()
@@ -2449,7 +2487,7 @@ sectionInv:Button({
 
 sectionInv:Button({
     Title = "Refresh Inventory Data",
-    Desc = "Buka tutup tas otomatis agar data ter-load",
+    Desc = "Force load UI tas",
     Icon = "refresh-cw",
     Callback = function()
         local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
