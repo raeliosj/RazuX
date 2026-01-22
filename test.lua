@@ -102,15 +102,19 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local function SendFullInventoryToDiscord()
     local url = SettingsState.WebhookFish.Url
     if not url or url == "" then
-        WindUI:Notify({ Title = "Error", Content = "Isi URL Webhook dulu!", Duration = 3 })
+        WindUI:Notify({ Title = "Error", Content = "URL Webhook kosong!", Duration = 3 })
         return
     end
 
     local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    local content = pGui:FindFirstChild("Inventory") and pGui.Inventory:FindFirstChild("Main") and pGui.Inventory.Main:FindFirstChild("Content")
-
-    if not content then
-        WindUI:Notify({ Title = "Error", Content = "Buka tas lu dulu!", Duration = 3 })
+    
+    -- Cari folder Content dengan lebih teliti
+    local invGui = pGui:FindFirstChild("Inventory")
+    local main = invGui and invGui:FindFirstChild("Main")
+    local scroll = main and main:FindFirstChild("Content") or (main and main:FindFirstChild("Scroll")) -- Cek kalo namanya Scroll
+    
+    if not scroll then
+        WindUI:Notify({ Title = "Error", Content = "UI Tas tidak ditemukan! Buka tas dulu.", Duration = 3 })
         return
     end
 
@@ -118,55 +122,62 @@ local function SendFullInventoryToDiscord()
     local rarityColors = {[1]=0xaaaaaa, [2]=0xffffff, [3]=0x5555ff, [5]=0xffaa00, [6]=0xaa00ff, [7]=0xff00ff}
     
     local sentCount = 0
+    local children = scroll:GetChildren()
 
-    for _, v in pairs(content:GetChildren()) do
-        if v:IsA("Frame") and v:FindFirstChild("ItemName") then
-            -- Batasin maksimal 10 ikan teratas biar gak kena spam limit Discord
+    for _, v in pairs(children) do
+        -- Cari frame yang punya nama ikan (Fishit biasanya pake Frame/TextButton)
+        local nameLabel = v:FindFirstChild("ItemName") or v:FindFirstChild("Name")
+        if v:IsA("GuiObject") and nameLabel then
             if sentCount >= 10 then break end 
 
-            local rawName = v.ItemName.Text
-            local cleanName = rawName:gsub("Shiny ", ""):gsub("Big ", "")
-            local tier = FishDB[cleanName] or 1
-            
-            -- Ambil Metadata Detail
-            local weight = v:FindFirstChild("Weight") and v.Weight.Text or "N/A"
-            local value = v:FindFirstChild("Value") and v.Value.Text or "0"
-            local mutation = v:FindFirstChild("Mutation") and v.Mutation.Text or "None"
-            local variant = rawName:find("Shiny") and "Shiny" or (rawName:find("Big") and "Big" or "Normal")
-            
-            -- Ambil Image ID
-            local imgId = "0"
-            if v:FindFirstChild("Icon") then
-                imgId = tostring(v.Icon.Image):match("%d+") or "0"
-            end
+            local rawName = nameLabel.Text
+            if rawName ~= "" and rawName ~= "Item Name" then
+                local cleanName = rawName:gsub("Shiny ", ""):gsub("Big ", "")
+                local tier = FishDB[cleanName] or 1
+                
+                -- Metadata Scraper
+                local weight = v:FindFirstChild("Weight") and v.Weight.Text or "N/A"
+                local value = v:FindFirstChild("Value") and v.Value.Text or "0"
+                local mutation = v:FindFirstChild("Mutation") and v.Mutation.Text or "None"
+                local variant = rawName:find("Shiny") and "Shiny" or (rawName:find("Big") and "Big" or "Normal")
+                
+                -- Image ID
+                local imgId = "0"
+                local icon = v:FindFirstChild("Icon") or v:FindFirstChild("ImageLabel")
+                if icon then
+                    imgId = tostring(icon.Image):match("%d+") or "0"
+                end
 
-            -- Kirim per Ikan (Individual Card Style)
-            request({
-                Url = url,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = game:GetService("HttpService"):JSONEncode({
-                    ["embeds"] = {{
-                        ["title"] = "🐟 " .. rawName,
-                        ["color"] = rarityColors[tier] or 0xffffff,
-                        ["thumbnail"] = { ["url"] = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. imgId .. "&width=420&height=420&format=png" },
-                        ["fields"] = {
-                            {["name"] = "🏷️ Rarity", ["value"] = "Tier " .. tier .. " (" .. (rarityNames[tier] or "Common") .. ")", ["inline"] = true},
-                            {["name"] = "✨ Variant", ["value"] = variant, ["inline"] = true},
-                            {["name"] = "🧬 Mutation", ["value"] = mutation, ["inline"] = true},
-                            {["name"] = "⚖️ Weight", ["value"] = weight, ["inline"] = true},
-                            {["name"] = "💰 Value", ["value"] = value, ["inline"] = true}
-                        },
-                        ["footer"] = { ["text"] = "Fishit Inventory Scraper • " .. os.date("%X") }
-                    }}
+                request({
+                    Url = url,
+                    Method = "POST",
+                    Headers = {["Content-Type"] = "application/json"},
+                    Body = game:GetService("HttpService"):JSONEncode({
+                        ["embeds"] = {{
+                            ["title"] = "🐟 " .. rawName,
+                            ["color"] = rarityColors[tier] or 0xffffff,
+                            ["thumbnail"] = { ["url"] = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. imgId .. "&width=420&height=420&format=png" },
+                            ["fields"] = {
+                                {["name"] = "🏷️ Rarity", ["value"] = "Tier " .. tier .. " (" .. (rarityNames[tier] or "Common") .. ")", ["inline"] = true},
+                                {["name"] = "✨ Variant", ["value"] = variant, ["inline"] = true},
+                                {["name"] = "🧬 Mutation", ["value"] = mutation, ["inline"] = true},
+                                {["name"] = "⚖️ Weight", ["value"] = weight, ["inline"] = true},
+                                {["name"] = "💰 Value", ["value"] = value, ["inline"] = true}
+                            }
+                        }}
+                    })
                 })
-            })
-            sentCount = sentCount + 1
-            task.wait(0.5) -- Kasih jeda biar gak di-ban Discord (Rate Limit)
+                sentCount = sentCount + 1
+                task.wait(0.3)
+            end
         end
     end
 
-    WindUI:Notify({ Title = "Success", Content = "Sent " .. sentCount .. " item cards to Discord!", Duration = 3 })
+    if sentCount == 0 then
+        WindUI:Notify({ Title = "Debug", Content = "Ditemukan "..#children.." folder, tapi bukan item ikan.", Duration = 3 })
+    else
+        WindUI:Notify({ Title = "Success", Content = "Sent " .. sentCount .. " items!", Duration = 3 })
+    end
 end
 local RunService = game:GetService("RunService")
 
