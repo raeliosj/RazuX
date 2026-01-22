@@ -31,7 +31,7 @@ end
 
 if WindUI then
     WindUI:Popup({
-        Title = "Ryzen Hub",
+        Title = "RazuX",
         Icon = "rbxassetid://84501312005643",
         Content = "Join our Discord server",
         Buttons = {
@@ -57,7 +57,7 @@ if WindUI then
     })
 
     local Window = WindUI:CreateWindow({
-        Title = "Ryzen Hub - 99 Nights In The Forest",
+        Title = "RazuX - 99 Nights In The Forest",
         Icon = "rbxassetid://84501312005643",
         Author = "99 Nights In The Forest | " .. version,
         Folder = "RyzenHub_NITF",
@@ -79,7 +79,7 @@ if WindUI then
     if not Window then
         warn("Window creation failed. Attempting to reinitialize UI...")
         Window = WindUI:CreateWindow({
-            Title = "Ryzen Hub - 99 Nights In The Forest",
+            Title = "RazuX - 99 Nights In The Forest",
             Icon = "rbxassetid://84501312005643",
             Author = "99 Nights In The Forest | " .. version,
             Folder = "RyzenHub_NITF",
@@ -252,7 +252,7 @@ if WindUI then
         Window:Destroy()
         task.wait(0.5)
         Window = WindUI:CreateWindow({
-            Title = "Ryzen Hub - 99 Nights In The Forest",
+            Title = "RazuX - 99 Nights In The Forest",
             Icon = "rbxassetid://84501312005643",
             Author = "99 Nights In The Forest | " .. version,
             Folder = "RyzenHub_NITF",
@@ -2262,8 +2262,8 @@ if WindUI then
 
     -- Initial UI Notification
     WindUI:Notify({
-        Title = "Ryzen Hub Loaded",
-        Content = "Successfully loaded Ryzen Hub for 99 Nights In The Forest!",
+        Title = "RazuX Loaded",
+        Content = "Successfully loaded RazuX for 99 Nights In The Forest!",
         Duration = 5
     })
 end
