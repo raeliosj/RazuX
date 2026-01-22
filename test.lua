@@ -99,26 +99,60 @@ local Workspace = game:GetService("Workspace")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-local function GetInventoryItems()
-    local items = {}
-    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
-    local function add(name, qty)
-        qty = qty or 1
-        if name and name ~= "" then items[name] = (items[name] or 0) + qty end
+local function SendInventoryToWebhook()
+    local url = SettingsState.WebhookFish.Url
+    if not url or url == "" or url == "https://discord.com/api/webhooks/..." then
+        WindUI:Notify({ Title = "Webhook", Content = "Isi Webhook URL dulu di Tab Webhook!", Duration = 3 })
+        return
     end
+
+    local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    local items = {}
+    
+    -- Scan Items
     if pGui and pGui:FindFirstChild("Inventory") then
-        local invMain = pGui.Inventory:FindFirstChild("Main")
-        if invMain and invMain:FindFirstChild("Content") then
-            for _, v in pairs(invMain.Content:GetDescendants()) do
-                if v.Name == "ItemName" and v:IsA("TextLabel") then
-                    if v.Text ~= "" and v.Text ~= "Item Name" and v.Text ~= "Fish Name" then
-                        add(v.Text)
-                    end
-                end
+        local content = pGui.Inventory.Main.Content
+        for _, v in pairs(content:GetDescendants()) do
+            if v.Name == "ItemName" and v:IsA("TextLabel") and v.Text ~= "" and v.Text ~= "Fish Name" then
+                local name = v.Text
+                items[name] = (items[name] or 0) + 1
             end
         end
     end
-    return items
+
+    local description = ""
+    local totalFish = 0
+    for name, count in pairs(items) do
+        description = description .. "🔹 **" .. name .. "**: `" .. count .. "`\n"
+        totalFish = totalFish + count
+    end
+
+    if totalFish == 0 then
+        WindUI:Notify({ Title = "Webhook", Content = "Tas kosong!", Duration = 3 })
+        return
+    end
+
+    local data = {
+        ["embeds"] = {{
+            ["title"] = "Bag " .. game:GetService("Players").LocalPlayer.Name .. "'s Inventory Scan",
+            ["description"] = description,
+            ["color"] = tonumber(0x00ff00), -- Warna Hijau
+            ["fields"] = {
+                {["name"] = "Total Items", ["value"] = tostring(totalFish), ["inline"] = true}
+            },
+            ["footer"] = { ["text"] = "RazuX Inventory Scanner v1.0" },
+            ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }}
+    }
+
+    local response = request({
+        Url = url,
+        Method = "POST",
+        Headers = {["Content-Type"] = "application/json"},
+        Body = game:GetService("HttpService"):JSONEncode(data)
+    })
+    
+    WindUI:Notify({ Title = "Webhook", Content = "Inventory sent to Discord!", Duration = 3 })
 end
 local RunService = game:GetService("RunService")
 
@@ -2402,47 +2436,30 @@ local TabWebHook = Window:Tab({ Title = "Webhook", Icon = "webhook" })
 local TabSettings = Window:Tab({ Title = "Settings", Icon = "settings" })
 
 -- [[ TAB PLAYER: UTILITIES ]]
-local sectionInv = TabPlayer:Section({ Title = "Inventory Scanner", Opened = true})
+local sectionInv = TabPlayer:Section({ Title = "Inventory Utilities", Opened = true})
 
 sectionInv:Button({
-	Title = "Copy Inventory List",
-	Desc = "Scan & copy daftar ikan ke clipboard",
-	Icon = "copy",
-	Callback = function()
-		WindUI:Notify({ Title = "Inventory", Content = "Scanning...", Duration = 2 })
-		local data = GetInventoryItems() -- Pastikan Langkah 1 (fungsi di Line 100) sudah dipasang
-		local str = "INVENTORY LIST:\n"
-		local total = 0
-		local sortedNames = {}
-		for name in pairs(data) do table.insert(sortedNames, name) end
-		table.sort(sortedNames)
-		for _, name in ipairs(sortedNames) do
-			local count = data[name]
-			str = str .. "- " .. name .. " (x" .. count .. ")\n"
-			total = total + count
-		end
-		if total == 0 then
-			WindUI:Notify({ Title = "Inventory", Content = "Buka tas dulu agar data terbaca!", Duration = 3 })
-		else
-			setclipboard(str .. "\nTotal Items: " .. total)
-			WindUI:Notify({ Title = "Inventory", Content = "Copied to clipboard!", Duration = 3 })
-		end
-	end
+    Title = "Send Inventory to Discord",
+    Desc = "Kirim daftar isi tas ke Webhook Discord",
+    Icon = "send",
+    Callback = function()
+        SendInventoryToWebhook()
+    end
 })
 
 sectionInv:Button({
-	Title = "Refresh Data",
-	Desc = "Paksa load data tas",
-	Icon = "refresh-cw",
-	Callback = function()
-		local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-		if pGui and pGui:FindFirstChild("Inventory") then
-			pGui.Inventory.Enabled = true
-			task.wait(0.1)
-			pGui.Inventory.Enabled = false
-			WindUI:Notify({ Title = "Inventory", Content = "Refreshed!", Duration = 2 })
-		end
-	end
+    Title = "Refresh Inventory Data",
+    Desc = "Buka tutup tas otomatis agar data ter-load",
+    Icon = "refresh-cw",
+    Callback = function()
+        local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+        if pGui and pGui:FindFirstChild("Inventory") then
+            pGui.Inventory.Enabled = true
+            task.wait(0.2)
+            pGui.Inventory.Enabled = false
+            WindUI:Notify({ Title = "Inventory", Content = "Data Refreshed!", Duration = 2 })
+        end
+    end
 })
 local sectionHideName = TabPlayer:Section({ Title = "Hide Name", Opened = false})
 sectionHideName:Input({
