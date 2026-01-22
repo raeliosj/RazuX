@@ -1,4 +1,3 @@
-
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local UserInputService = game:GetService("UserInputService")
@@ -12,12 +11,12 @@ local Camera = workspace.CurrentCamera or workspace:WaitForChild("Camera")
 local GUI_PARENT = (typeof(gethui) == "function" and gethui()) or LocalPlayer:WaitForChild("PlayerGui")
 
 -- CLEANUP OLD GUI
-if GUI_PARENT:FindFirstChild("DVN_INVENTORY") then
+if GUI_PARENT:FindFirstChild("RazuX_INVENTORY") then
     GUI_PARENT.DVN_INVENTORY:Destroy()
 end
 
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "DVN_INVENTORY"
+ScreenGui.Name = "RazuX_INVENTORY"
 ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 ScreenGui.DisplayOrder = 10001 -- Above Main
 ScreenGui.Parent = GUI_PARENT
@@ -60,7 +59,7 @@ Header.BackgroundTransparency = 1
 Header.Parent = MainFrame
 
 local Title = Instance.new("TextLabel")
-Title.Text = "DVN INVENTORY"
+Title.Text = "RazuX INVENTORY"
 Title.Size = UDim2.new(1, -40, 1, 0)
 Title.Position = UDim2.new(0, 12, 0, 0)
 Title.BackgroundTransparency = 1
@@ -495,7 +494,7 @@ RefreshBtn.MouseButton1Click:Connect(UpdateList)
 
 CopyBtn.MouseButton1Click:Connect(function()
     local data = GetItems()
-    local str = "DVN INVENTORY LIST:\n"
+    local str = "RazuX INVENTORY LIST:\n"
     for name, count in pairs(data) do
         str = str .. "- " .. name .. " x" .. count .. "\n"
     end
