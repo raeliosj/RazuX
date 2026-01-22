@@ -1,5 +1,5 @@
 -- 仅在 99 Nights In The Forest (PlaceId: 14685809394) 运行
-if game.PlaceId ~= 79546208627805 then return end
+if game.PlaceId ~= 14685809394 then return end
 
 local version = LRM_ScriptVersion and "v" .. table.concat(LRM_ScriptVersion:split(""), ".") or "Dev Version"
 local success, WindUI = pcall(function()
