@@ -102,54 +102,56 @@ local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local function SendFullInventoryToDiscord()
     local url = SettingsState.WebhookFish.Url
     if not url or url == "" then
-        WindUI:Notify({ Title = "Error", Content = "Isi URL Webhook dulu!", Duration = 3 })
+        WindUI:Notify({ Title = "Error", Content = "URL Webhook kosong!", Duration = 3 })
         return
     end
 
-    local pGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-    local content = pGui:FindFirstChild("Inventory") and pGui.Inventory.Main:FindFirstChild("Content")
-
-    if not content then
-        WindUI:Notify({ Title = "Error", Content = "Buka tas dulu (Pencet E)!", Duration = 3 })
-        return
-    end
+    local Player = game:GetService("Players").LocalPlayer
+    local pGui = Player:FindFirstChild("PlayerGui")
+    
+    -- TRICK: Buka tas sebentar lewat script biar foldernya muncul
+    local invGui = pGui:FindFirstChild("Inventory")
+    if invGui then invGui.Enabled = true end
+    task.wait(0.2)
 
     local rarityNames = {[1]="Common",[2]="Uncommon",[3]="Rare",[5]="Legendary",[6]="Mythic",[7]="SECRET"}
     local rarityColors = {[1]=0xaaaaaa, [2]=0xffffff, [3]=0x5555ff, [5]=0xffaa00, [6]=0xaa00ff, [7]=0xff00ff}
     
     local itemsSent = 0
+    
+    -- SCAN SEMUA DESCENDANTS (Nyari paksa label "ItemName")
+    local allObjects = invGui:GetDescendants()
+    local processedFish = {} -- Biar ga double send
 
-    -- Loop semua object di Content
-    for _, v in pairs(content:GetChildren()) do
-        -- Fishit biasanya pake ImageButton atau Frame buat tiap slot ikan
-        if v:IsA("GuiObject") and (v:FindFirstChild("ItemName") or v:FindFirstChild("FishName")) then
-            if itemsSent >= 10 then break end -- Limit biar ga kena ban Discord
-
-            local nameObj = v:FindFirstChild("ItemName") or v:FindFirstChild("FishName")
-            local rawName = nameObj.Text
+    for _, v in pairs(allObjects) do
+        if v.Name == "ItemName" or v.Name == "FishName" and v:IsA("TextLabel") then
+            local rawName = v.Text
+            local parentFrame = v.Parent -- Biasanya Slot Frame-nya
             
-            if rawName ~= "" and rawName ~= "Item Name" then
+            if rawName ~= "" and rawName ~= "Item Name" and not processedFish[rawName .. (parentFrame.Name)] then
+                if itemsSent >= 10 then break end
+
                 local cleanName = rawName:gsub("Shiny ", ""):gsub("Big ", "")
                 local tier = FishDB[cleanName] or 1
                 
-                -- Ambil info dari UI asli Fishit
-                local weight = v:FindFirstChild("Weight") and v.Weight.Text or "N/A"
-                local value = v:FindFirstChild("Value") and v.Value.Text or "0"
-                local mutation = v:FindFirstChild("Mutation") and v.Mutation.Text or "None"
+                -- Ambil info dari Slot Frame
+                local weight = parentFrame:FindFirstChild("Weight") and parentFrame.Weight.Text or "N/A"
+                local value = parentFrame:FindFirstChild("Value") and parentFrame.Value.Text or "0"
+                local mutation = parentFrame:FindFirstChild("Mutation") and parentFrame.Mutation.Text or "None"
                 local variant = rawName:find("Shiny") and "Shiny" or (rawName:find("Big") and "Big" or "Normal")
                 
-                -- Image Handler
+                -- Image ID (Cari icon di dalem parent slot)
                 local imgId = "0"
-                local icon = v:FindFirstChild("Icon") or v:FindFirstChild("ImageLabel") or v:FindFirstChild("FishIcon")
-                if icon and icon:IsA("ImageLabel") then
-                    imgId = tostring(icon.Image):match("%d+") or "0"
+                for _, child in pairs(parentFrame:GetChildren()) do
+                    if child:IsA("ImageLabel") and (child.Name:find("Icon") or child.Name:find("Fish")) then
+                        imgId = tostring(child.Image):match("%d+") or "0"
+                        break
+                    end
                 end
 
-                -- Kirim request (Format yang biasa dipake di script lu)
                 local data = {
                     ["embeds"] = {{
                         ["title"] = "📋 Fishit Card: " .. rawName,
-                        ["description"] = "**Owner:** " .. game.Players.LocalPlayer.Name,
                         ["color"] = rarityColors[tier] or 0xffffff,
                         ["thumbnail"] = { ["url"] = "https://www.roblox.com/asset-thumbnail/image?assetId=" .. imgId .. "&width=420&height=420&format=png" },
                         ["fields"] = {
@@ -158,8 +160,7 @@ local function SendFullInventoryToDiscord()
                             {["name"] = "🧪 Mutation", ["value"] = mutation, ["inline"] = true},
                             {["name"] = "⚖️ Weight", ["value"] = weight, ["inline"] = true},
                             {["name"] = "💰 Value", ["value"] = value, ["inline"] = true}
-                        },
-                        ["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+                        }
                     }}
                 }
 
@@ -170,16 +171,20 @@ local function SendFullInventoryToDiscord()
                     Body = game:GetService("HttpService"):JSONEncode(data)
                 })
 
+                processedFish[rawName .. (parentFrame.Name)] = true
                 itemsSent = itemsSent + 1
                 task.wait(0.5)
             end
         end
     end
 
+    -- Tutup lagi tasnya biar gak ganggu
+    if invGui then invGui.Enabled = false end
+
     if itemsSent == 0 then
-        WindUI:Notify({ Title = "Warning", Content = "Gagal nemu item. Coba buka tas & scroll!", Duration = 3 })
+        WindUI:Notify({ Title = "KOCAK", Content = "Beneran ga nemu! Coba lu buka tas manual terus scroll!", Duration = 5 })
     else
-        WindUI:Notify({ Title = "Success", Content = "Berhasil kirim " .. itemsSent .. " ikan!", Duration = 3 })
+        WindUI:Notify({ Title = "GACOR", Content = "Sent " .. itemsSent .. " items!", Duration = 3 })
     end
 end
 local RunService = game:GetService("RunService")
