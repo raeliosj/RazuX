@@ -1,4 +1,3 @@
-
 -- ts file was generated at discord.gg/25ms
 
 
@@ -177,7 +176,7 @@ if _G.httpRequest then
     end
     local v10, v11, v12 = ipairs(vu6.Items:GetChildren())
     local v13 = {}
-    local vu14 = "RazuX/FishIt/Position.json"
+    local vu14 = "Chloe X/FishIt/Position.json"
     while true do
         local v15, v16 = v10(v11, v12)
         if v15 == nil then
@@ -383,7 +382,7 @@ if _G.httpRequest then
             if v78 then
                 task.wait(2)
                 v77.CFrame = v78
-                RazuX("Teleported to your last position...")
+                chloex("Teleported to your last position...")
             end
         end)
     end
@@ -540,7 +539,7 @@ if _G.httpRequest then
     end
     local function vu126(p125)
         if vu7.lastState ~= p125 then
-            RazuX(p125)
+            chloex(p125)
             vu7.lastState = p125
         end
     end
@@ -624,11 +623,11 @@ if _G.httpRequest then
                         pu137:PivotTo(vu7.curCF)
                         vu87(pu137, v138, true)
                         task.wait(0.5)
-                        RazuX("Respawn \226\134\146 Back")
+                        chloex("Respawn \226\134\146 Back")
                     elseif vu7.origCF then
                         pu137:PivotTo(vu7.origCF)
                         vu87(pu137, v138, true)
-                        RazuX("Back to farm")
+                        chloex("Back to farm")
                     end
                 end
             end)
@@ -734,7 +733,7 @@ if _G.httpRequest then
         Version = 4
     })
     if v162 then
-        RazuX("Window loaded!")
+        chloex("Window loaded!")
     end
     local v163 = {
         Info = v162:AddTab({
@@ -793,11 +792,11 @@ if _G.httpRequest then
         Callback = function(p170)
             if p170 then
                 local vu171 = game:GetService("Players").LocalPlayer
-                if game.CoreGui:FindFirstChild("RazuX_FishingPanel") then
-                    game.CoreGui:FindFirstChild("RazuX_FishingPanel"):Destroy()
+                if game.CoreGui:FindFirstChild("ChloeX_FishingPanel") then
+                    game.CoreGui:FindFirstChild("ChloeX_FishingPanel"):Destroy()
                 end
                 local v172 = Instance.new("ScreenGui")
-                v172.Name = "RazuX_FishingPanel"
+                v172.Name = "ChloeX_FishingPanel"
                 v172.IgnoreGuiInset = true
                 v172.ResetOnSpawn = false
                 v172.ZIndexBehavior = Enum.ZIndexBehavior.Global
@@ -827,7 +826,7 @@ if _G.httpRequest then
                 v176.Position = UDim2.new(0, 45, 0, 5)
                 v176.BackgroundTransparency = 1
                 v176.Font = Enum.Font.GothamBold
-                v176.Text = "RazuX PANEL FISHING"
+                v176.Text = "CHLOEX PANEL FISHING"
                 v176.TextSize = 22
                 v176.TextColor3 = Color3.fromRGB(255, 255, 255)
                 v176.TextXAlignment = Enum.TextXAlignment.Left
@@ -910,7 +909,7 @@ if _G.httpRequest then
                 end)
             else
                 vu7.fishingPanelRunning = false
-                local v188 = game.CoreGui:FindFirstChild("RazuX_FishingPanel")
+                local v188 = game.CoreGui:FindFirstChild("ChloeX_FishingPanel")
                 if v188 then
                     v188:Destroy()
                 end
@@ -1428,7 +1427,7 @@ if _G.httpRequest then
                 v272:SetAttribute("Loading", nil)
                 task.wait(0.05)
                 v272:SetAttribute("Loading", false)
-                RazuX("Recovery Successfully!")
+                chloex("Recovery Successfully!")
             end)
         end
     })
@@ -1871,7 +1870,7 @@ if _G.httpRequest then
             end
             if v349 then
                 SavePosition(v349.CFrame)
-                RazuX("Position saved successfully!")
+                chloex("Position saved successfully!")
             end
         end,
         SubTitle = "Reset Position",
@@ -1879,7 +1878,7 @@ if _G.httpRequest then
             if isfile(vu14) then
                 delfile(vu14)
             end
-            RazuX("Last position has been reset.")
+            chloex("Last position has been reset.")
         end
     })
     local v350 = v163.Auto:AddSection("Enchant Features")
@@ -2212,7 +2211,7 @@ if _G.httpRequest then
                 vu5.Events.Totem:FireServer(pu445)
             end)
             if not v446 then
-                warn("[RazuX] Totem spawn failed:", tostring(v447))
+                warn("[Chloe X] Totem spawn failed:", tostring(v447))
             end
         end
     end
@@ -2431,7 +2430,7 @@ if _G.httpRequest then
             else
                 if vu7.origCF then
                     vu2.Character:PivotTo(vu7.origCF)
-                    RazuX("Auto Event Off")
+                    chloex("Auto Event Off")
                 end
                 local v494 = vu7
                 vu7.curCF = nil
@@ -2562,10 +2561,10 @@ if _G.httpRequest then
         end
         if p538 then
             vu524("Sending")
-            RazuX("Sending " .. p538)
+            chloex("Sending " .. p538)
         else
             vu529("Sending")
-            RazuX("Sending fish for coins")
+            chloex("Sending fish for coins")
         end
         if not pcall(function()
             vu5.Functions.Trade:InvokeServer(vu542.UserId, pu537)
@@ -2610,16 +2609,16 @@ if _G.httpRequest then
         local v552 = vu7.trade
         if not v552.trading then
             if not (v552.selectedPlayer and v552.selectedItem) then
-                return RazuX("Select player & item first!")
+                return chloex("Select player & item first!")
             end
             v552.trading = true
             v552.successCount = 0
-            RazuX("Starting trade with " .. v552.selectedPlayer)
+            chloex("Starting trade with " .. v552.selectedPlayer)
             local v553 = v552.currentGrouped[v552.selectedItem]
             if not v553 then
                 v552.trading = false
                 vu524("<font color=\'#ff3333\'>Item not found</font>")
-                return RazuX("Item not found")
+                return chloex("Item not found")
             end
             v552.totalToTrade = math.min(v552.tradeAmount, # v553.uuids)
             local v554 = 1
@@ -2631,7 +2630,7 @@ if _G.httpRequest then
             end
             v552.trading = false
             vu524("<font color=\'#66ccff\'>All trades finished</font>")
-            RazuX("All trades finished")
+            chloex("All trades finished")
         end
     end
     function chooseFishesByRange(p556, p557)
@@ -2670,7 +2669,7 @@ if _G.httpRequest then
             v566.successCoins = 0
             v566.sentCoins = 0
             vu529("<font color=\'#ffaa00\'>Starting...</font>")
-            RazuX("Starting coin trade with " .. v566.selectedPlayer)
+            chloex("Starting coin trade with " .. v566.selectedPlayer)
             local v567 = vu1.Players.LocalPlayer
             local v568 = vu4.PlayerStatsUtility:GetPlayerModifiers(v567)
             local v569 = vu6.Data:GetExpect({
@@ -2721,7 +2720,7 @@ if _G.httpRequest then
                         end
                         v566.trading = false
                         vu529(string.format("<font color=\'#66ccff\'>Coin trade finished (Target: %d, Received: %d)</font>", v566.targetCoins, v566.successCoins))
-                        RazuX(string.format("Coin trade finished (Target: %d, Received: %d)", v566.targetCoins, v566.successCoins))
+                        chloex(string.format("Coin trade finished (Target: %d, Received: %d)", v566.targetCoins, v566.successCoins))
                     else
                         v566.trading = false
                         vu529("<font color=\'#ff3333\'>Player not found</font>")
@@ -2734,11 +2733,11 @@ if _G.httpRequest then
             else
                 v566.trading = false
                 vu529("<font color=\'#ff3333\'>No fishes found</font>")
-                RazuX("\226\154\160 No fishes found in inventory")
+                chloex("\226\154\160 No fishes found in inventory")
                 return
             end
         else
-            return RazuX("\226\154\160 Select player & coin target first!")
+            return chloex("\226\154\160 Select player & coin target first!")
         end
     end
     local vu586 = v509:AddDropdown({
@@ -2935,11 +2934,11 @@ if _G.httpRequest then
         local v622 = vu7.trade
         if not v622.trading then
             if not (v622.selectedPlayer and v622.selectedRarity) then
-                return RazuX("\226\154\160 Select player & rarity first!")
+                return chloex("\226\154\160 Select player & rarity first!")
             end
             v622.trading = true
             v622.successCount = 0
-            RazuX("Starting rarity trade (" .. v622.selectedRarity .. ") with " .. v622.selectedPlayer)
+            chloex("Starting rarity trade (" .. v622.selectedRarity .. ") with " .. v622.selectedPlayer)
             vu613("<font color=\'#ffaa00\'>Scanning " .. v622.selectedRarity .. " fishes...</font>")
             local v623, v624, v625 = ipairs(vu6.Data:GetExpect({
                 "Inventory",
@@ -2965,7 +2964,7 @@ if _G.httpRequest then
             if # v626 == 0 then
                 v622.trading = false
                 vu613("<font color=\'#ff3333\'>No " .. v622.selectedRarity .. " fishes found</font>")
-                return RazuX("No " .. v622.selectedRarity .. " fishes found")
+                return chloex("No " .. v622.selectedRarity .. " fishes found")
             end
             v622.totalToTrade = math.min(# v626, v622.rarityAmount or # v626)
             vu613(string.format("Sending %d %s fishes...", v622.totalToTrade, v622.selectedRarity))
@@ -2981,7 +2980,7 @@ if _G.httpRequest then
             end
             v622.trading = false
             vu613("<font color=\'#66ccff\'>Rarity trade finished</font>")
-            RazuX("Rarity trade finished (" .. v622.selectedRarity .. ")")
+            chloex("Rarity trade finished (" .. v622.selectedRarity .. ")")
         end
     end
     TradeByRarity:AddToggle({
@@ -3060,7 +3059,7 @@ if _G.httpRequest then
                 if setclipboard then
                     setclipboard(v645)
                 end
-                RazuX("Successfully copied your position to clipboard!")
+                chloex("Successfully copied your position to clipboard!")
             end
         end
     })
@@ -3655,11 +3654,11 @@ if _G.httpRequest then
         Callback = function(p777)
             _G.KaitunPanel = p777
             if p777 then
-                if vu1.CoreGui:FindFirstChild("RazuX_KaitunPanel") then
-                    vu1.CoreGui:FindFirstChild("RazuX_KaitunPanel"):Destroy()
+                if vu1.CoreGui:FindFirstChild("ChloeX_KaitunPanel") then
+                    vu1.CoreGui:FindFirstChild("ChloeX_KaitunPanel"):Destroy()
                 end
                 local v778 = Instance.new("ScreenGui")
-                v778.Name = "RazuX_KaitunPanel"
+                v778.Name = "ChloeX_KaitunPanel"
                 v778.IgnoreGuiInset = true
                 v778.ResetOnSpawn = false
                 v778.ZIndexBehavior = Enum.ZIndexBehavior.Global
@@ -3677,7 +3676,7 @@ if _G.httpRequest then
                 v780.Position = UDim2.new(0, 10, 0, 8)
                 v780.BackgroundTransparency = 1
                 v780.Font = Enum.Font.GothamBold
-                v780.Text = "RazuX KAITUN PANEL"
+                v780.Text = "CHLOEX KAITUN PANEL"
                 v780.TextSize = 22
                 v780.TextColor3 = Color3.fromRGB(255, 255, 255)
                 v780.TextXAlignment = Enum.TextXAlignment.Center
@@ -4009,7 +4008,7 @@ if _G.httpRequest then
                 end)
             else
                 _G.KaitunPanel = false
-                local v854 = vu1.CoreGui:FindFirstChild("RazuX_KaitunPanel")
+                local v854 = vu1.CoreGui:FindFirstChild("ChloeX_KaitunPanel")
                 if v854 then
                     v854:Destroy()
                 end
@@ -4020,7 +4019,7 @@ if _G.httpRequest then
         Title = "Hide Kaitun Panel",
         Default = false,
         Callback = function(p855)
-            local v856 = vu1.CoreGui:FindFirstChild("RazuX_KaitunPanel")
+            local v856 = vu1.CoreGui:FindFirstChild("ChloeX_KaitunPanel")
             local v857 = v856 and (v856:FindFirstChild("MainCard") or v856:FindFirstChildWhichIsA("Frame"))
             if v857 then
                 v857.Visible = not p855
@@ -4893,7 +4892,7 @@ if _G.httpRequest then
         Content = "Refresh list!",
         Callback = function()
             vu1060:SetValues(vu149())
-            RazuX("Player list refreshed!")
+            chloex("Player list refreshed!")
         end
     })
     v1058:AddButton({
@@ -4910,15 +4909,15 @@ if _G.httpRequest then
                     end
                     if v1063 then
                         v1063.CFrame = v1062.Character.HumanoidRootPart.CFrame + Vector3.new(0, 3, 0)
-                        RazuX("Teleported to " .. v1062.Name)
+                        chloex("Teleported to " .. v1062.Name)
                     else
-                        RazuX("Your HumanoidRootPart not found.")
+                        chloex("Your HumanoidRootPart not found.")
                     end
                 else
-                    RazuX("Target not found or not loaded.")
+                    chloex("Target not found or not loaded.")
                 end
             else
-                RazuX("Please select a player first!")
+                chloex("Please select a player first!")
             end
         end
     })
@@ -4941,10 +4940,10 @@ if _G.httpRequest then
                 local v1068 = v1067 and game:GetService("Players").LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
                 if v1068 then
                     v1068.CFrame = CFrame.new(v1067 + Vector3.new(0, 3, 0))
-                    RazuX("Teleported to " .. v1066)
+                    chloex("Teleported to " .. v1066)
                 end
             else
-                RazuX("Please select a location first!")
+                chloex("Please select a location first!")
             end
         end
     })
@@ -5072,7 +5071,7 @@ if _G.httpRequest then
         local v1096 = _G.hideident
         if v1096 and (v1096.overhead and v1096.titleLabel) then
             v1096.overhead.TitleContainer.Visible = true
-            v1096.titleLabel.Text = "discord.gg/RazuX"
+            v1096.titleLabel.Text = "discord.gg/chloex"
             v1096.gradient.Color = ColorSequence.new({
                 ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 85, 255)),
                 ColorSequenceKeypoint.new(0.333, Color3.fromRGB(145, 186, 255)),
@@ -5080,7 +5079,7 @@ if _G.httpRequest then
             })
             v1096.gradient.Rotation = 0
             v1096.header.Text = vu1080 ~= "" and vu1080 or "Chloe Rawr"
-            v1096.levelLabel.Text = vu1081 ~= "" and vu1081 or ".gg/RazuX"
+            v1096.levelLabel.Text = vu1081 ~= "" and vu1081 or ".gg/chloex"
         end
     end
     vu1095()
@@ -5424,7 +5423,7 @@ if _G.httpRequest then
                             content = DISCORD_ID2,
                             embeds = {
                                 {
-                                    title = "RazuX Webhook | Fish Caught",
+                                    title = "Chloe X Webhook | Fish Caught",
                                     url = "https://discord.gg/PaPvGUE8UC",
                                     description = string.format("Congratulations!! **%s** You have obtained a new **%s** fish!", _G.WebhookCustomName ~= "" and _G.WebhookCustomName or game.Players.LocalPlayer.Name, v1157),
                                     color = 52221,
@@ -5454,13 +5453,13 @@ if _G.httpRequest then
                                         url = getThumbnailURL(v1156.Icon) or "https://i.imgur.com/WltO8IG.png"
                                     },
                                     footer = {
-                                        text = "RazuX Webhook",
+                                        text = "Chloe X Webhook",
                                         icon_url = "https://i.imgur.com/WltO8IG.png"
                                     },
                                     timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
                                 }
                             },
-                            username = "RazuX Notification!",
+                            username = "Chloe X Notification!",
                             avatar_url = "https://i.imgur.com/9afHGRy.jpeg"
                         }
                         sendWebhook(v1155, v1161)
@@ -5611,7 +5610,7 @@ if _G.httpRequest then
                             }
                         }
                     },
-                    username = "RazuX Notification!",
+                    username = "Chloe X Notification!",
                     avatar_url = "https://i.imgur.com/9afHGRy.jpeg",
                     attachments = {}
                 }
@@ -5629,9 +5628,9 @@ if _G.httpRequest then
                         return v1180(v1181)
                     end)
                     if v1182 then
-                        RazuX("Successfully sent test message!")
+                        chloex("Successfully sent test message!")
                     else
-                        RazuX("Failed to send webhook:", v1183)
+                        chloex("Failed to send webhook:", v1183)
                     end
                 end)
             else
@@ -5979,11 +5978,11 @@ if _G.httpRequest then
                             end
                             local v1299 = # v1291 > 0 and table.concat(v1291, "\n") or "(No Fishes Found)"
                             local vu1300 = {
-                                username = "RazuX Notification!",
+                                username = "Chloe X Notification!",
                                 avatar_url = "https://i.imgur.com/9afHGRy.jpeg",
                                 embeds = {
                                     {
-                                        title = "\227\128\162RazuX Webhook | Player Info",
+                                        title = "\227\128\162Chloe X Webhook | Player Info",
                                         color = 52479,
                                         fields = {
                                             {
@@ -6010,7 +6009,7 @@ if _G.httpRequest then
                                             }
                                         },
                                         footer = {
-                                            text = string.format("RazuX Auto Sync | Every %dm", _G.WebhookFlags.Stats.Delay or 5),
+                                            text = string.format("Chloe X Auto Sync | Every %dm", _G.WebhookFlags.Stats.Delay or 5),
                                             icon_url = "https://i.imgur.com/WltO8IG.png"
                                         },
                                         timestamp = os.date("!%Y-%m-%dT%H:%M:%S.000Z")
@@ -6089,7 +6088,7 @@ if _G.httpRequest then
                             }
                         }
                     },
-                    username = "RazuX Notification!",
+                    username = "Chloe X Notification!",
                     avatar_url = "https://i.imgur.com/9afHGRy.jpeg"
                 }
                 task.spawn(function()
@@ -6150,7 +6149,7 @@ if _G.httpRequest then
         Default = _G.WebhookFlags.Disconnect.Enabled or false,
         Callback = function(p1325)
             if p1325 and (not _G.DisconnectCustomName or _G.DisconnectCustomName == "") then
-                RazuX("Invalid! Input Hide Identity first.")
+                chloex("Invalid! Input Hide Identity first.")
                 if _G.WebhookFlags and _G.WebhookFlags.Disconnect then
                     _G.WebhookFlags.Disconnect.Enabled = false
                 end
@@ -6193,7 +6192,7 @@ if _G.httpRequest then
         Title = "Test Disconnected Player",
         Content = "Kick yourself, send webhook, and auto rejoin.",
         Callback = function()
-            RazuX("Kicking player...")
+            chloex("Kicking player...")
             task.wait(1)
             SendDisconnectWebhook("Test Successfully :3")
             task.wait(2)
