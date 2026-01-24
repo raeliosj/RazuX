@@ -19,7 +19,7 @@ end
 local Setup = {
 	Keybind = Enum.KeyCode.LeftControl,
 	Transparency = 0.2,
-	ThemeMode = "Dark",
+	ThemeMode = "Ocean",
 	Size = nil,
 }
 
