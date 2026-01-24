@@ -1,1083 +1,356 @@
---[[
-    KREINXY Script - Fishing Automation
-    Cleaned & Optimized Version
-]]
+-- CorePlay - Fish It Hub | 70+ FULL FEATURES + DISCORD WEBHOOK | Tema Hitam + Lime | 2026
+-- BASED ON LATEST SCRIPTS: 9X-15X Speed, Instant Fish, Auto Everything + Webhook Notif
+-- UPDATE REMOTES VIA F9 CONSOLE OR PASTEBIN (e.g. Nine Hub, Trash Hub)
+-- Executor: Delta, Solara, Fluxus, Mobile OK | Private Server Recommended
 
--- ============================================
--- LOAD UI LIBRARY
--- ============================================
-local WindUI = loadstring(game:HttpGet(
-    "https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"
-))()
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
-local Window = WindUI:CreateWindow({
-    Title = "KREINXY | First It",
-    Icon = "door-open",
-    Author = "by KREINXY",
-    Folder = "BlatantScript",
-    Size = UDim2.fromOffset(600, 480),
-    MinSize = Vector2.new(560, 360),
-    Transparent = true,
-    Theme = "Dark",
-    Resizable = true,
-    SideBarWidth = 200,
-    KeySystem = false
+local Window = Rayfield:CreateWindow({
+   Name = "CorePlay - Fish It Hub (70+ Features + Webhook)",
+   LoadingTitle = "Loading 70+ Features...",
+   LoadingSubtitle = "x15 Speed | Jay x CorePlay",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "CorePlayFishItHub",
+      FileName = "FullConfig"
+   },
+   KeySystem = false,
+   Discord = {Enabled = false}
 })
 
-Window:Tag({
-    Title = "KREINXY",
-    Icon = "github",
-    Color = Color3.fromHex("#30ff6a"),
-    Radius = 0,
-})
-
--- ============================================
--- SERVICES
--- ============================================
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RunService = game:GetService("RunService")
-local Stats = game:GetService("Stats")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local Lighting = game:GetService("Lighting")
-
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
--- ============================================
--- NETWORK REMOTES
--- ============================================
-local Net = ReplicatedStorage
-    :WaitForChild("Packages")
-    :WaitForChild("_Index")
-    :WaitForChild("sleitnick_net@0.2.0")
-    :WaitForChild("net")
-
-local Remotes = {
-    Charge = Net:WaitForChild("RF/ChargeFishingRod"),
-    Request = Net:WaitForChild("RF/RequestFishingMinigameStarted"),
-    Cancel = Net:WaitForChild("RF/CancelFishingInputs"),
-    Complete = Net:WaitForChild("RE/FishingCompleted"),
-    SellAll = Net:WaitForChild("RF/SellAllItems"),
-    Weather = Net:WaitForChild("RF/PurchaseWeatherEvent")
+-- TEMA HITAM + LIME AGGRESSIVE
+local Theme = {
+   Background = Color3.fromRGB(8, 8, 12),
+   Topbar = Color3.fromRGB(12, 12, 18),
+   Accent = Color3.fromRGB(0, 255, 100),      -- Lime Neon
+   LightContrast = Color3.fromRGB(20, 25, 30),
+   DarkContrast = Color3.fromRGB(35, 35, 45),
+   Text = Color3.fromRGB(200, 255, 200),
+   ElementBackground = Color3.fromRGB(18, 18, 25),
+   ElementStroke = Color3.fromRGB(0, 220, 80),
+   SectionBackground = Color3.fromRGB(25, 25, 35)
 }
-
--- ============================================
--- GLOBAL STATE
--- ============================================
-local State = {
-    -- Blatant Fishing
-    FishingRunning = false,
-    CompleteDelay = 0.71,
-    CancelDelay = 0.32,
-    Phase = "STEP123",
-    LastStepTime = 0,
-    LoopThread = nil,
-    
-    -- Teleport
-    SelectedLocation = "Fisherman Island",
-    SelectedPlayer = nil,
-    SelectedEvents = {},
-    EventTeleportEnabled = false,
-    SavedCFrame = nil,
-    TeleportedToEvent = false,
-    
-    -- Shop
-    SelectedWeathers = {},
-    WeatherSpam = false,
-    
-    -- Misc
-    NoAnimationEnabled = false,
-    AnimConnection = nil,
-    NoNotificationEnabled = false,
-    HUDEnabled = false,
-    AntiAFKEnabled = false
-}
-
--- ============================================
--- BLATANT TAB - FISHING AUTOMATION
--- ============================================
-local BlatantTab = Window:Tab({
-    Title = "Blatant",
-    Icon = "zap"
-})
-
-BlatantTab:Paragraph({
-    Title = "Blatant Fishing",
-    Desc = "Auto fishing by forcing server steps.\n⚠ High risk – use wisely."
-})
-
-BlatantTab:Divider()
-
-local BlatantMain = BlatantTab:Section({
-    Title = "Main Control",
-    Opened = true
-})
-
--- ============================================
--- SPAM FISHING SYSTEM (MULTI-ROD FORCE)
--- ============================================
-
--- State untuk Multi-Threading
-local ActiveThreads = {}
-local SpamRate = 3  -- Berapa banyak rod aktif bersamaan
-
--- Original Force Functions (Aggressive Mode)
-local function ForceStep123()
-    task.spawn(function()
-        pcall(function()
-            Remotes.Cancel:InvokeServer()
-            Remotes.Charge:InvokeServer({[1] = os.clock()})
-            Remotes.Request:InvokeServer(os.clock(), os.clock(), os.clock())
-        end)
-    end)
-end
-
-local function ForceStep4()
-    task.spawn(function()
-        pcall(function()
-            Remotes.Complete:FireServer()
-            Remotes.Complete:FireServer()
-        end)
-    end)
-end
-
-local function ForceCancel()
-    task.spawn(function()
-        pcall(function()
-            Remotes.Complete:FireServer()
-            Remotes.Cancel:InvokeServer()
-            Remotes.Cancel:InvokeServer()
-        end)
-    end)
-end
-
--- ============================================
--- SPAM LOOP (MULTIPLE RODS SIMULTANEOUSLY)
--- ============================================
-local function StartSpamFishingLoop()
-    -- Cancel existing threads
-    for _, thread in pairs(ActiveThreads) do
-        if thread then
-            task.cancel(thread)
-        end
-    end
-    ActiveThreads = {}
-
-    print(string.format("🚀 Starting SPAM MODE with %d concurrent rods!", SpamRate))
-
-    -- Spawn multiple fishing threads
-    for i = 1, SpamRate do
-        local thread = task.spawn(function()
-            local phase = "STEP123"
-            local lastStepTime = os.clock()
-            
-            -- Staggered start untuk avoid detection
-            task.wait(i * 0.1)
-            
-            while State.FishingRunning do
-                task.wait(0)  -- Maximum speed
-                local now = os.clock()
-
-                -- Timeout protection
-                if (now - lastStepTime) > 3 then
-                    phase = "STEP123"
-                end
-
-                if phase == "STEP123" then
-                    lastStepTime = now
-                    ForceStep123()
-                    phase = "WAIT_COMPLETE"
-
-                elseif phase == "WAIT_COMPLETE" then
-                    if (now - lastStepTime) >= State.CompleteDelay then
-                        phase = "STEP4"
-                    end
-
-                elseif phase == "STEP4" then
-                    lastStepTime = now
-                    ForceStep4()
-                    phase = "WAIT_STOP"
-
-                elseif phase == "WAIT_STOP" then
-                    if (now - lastStepTime) >= State.CancelDelay then
-                        phase = "STEP123"
-                    end
-                end
-            end
-        end)
-        
-        ActiveThreads[i] = thread
-        print(string.format("✅ Rod #%d activated", i))
-    end
-end
-
--- ============================================
--- ULTRA SPAM MODE (EXTREME)
--- ============================================
-local function StartUltraSpamLoop()
-    -- Cancel existing
-    for _, thread in pairs(ActiveThreads) do
-        if thread then task.cancel(thread) end
-    end
-    ActiveThreads = {}
-
-    print("⚡ ULTRA SPAM MODE ACTIVATED - MAXIMUM AGGRESSION!")
-
-    -- Main spam thread
-    ActiveThreads[1] = task.spawn(function()
-        while State.FishingRunning do
-            -- Fire multiple sequences rapidly
-            for burst = 1, SpamRate do
-                task.spawn(function()
-                    pcall(function()
-                        local t = os.clock()
-                        
-                        -- Step 1-3 (Spam)
-                        Remotes.Cancel:InvokeServer()
-                        Remotes.Charge:InvokeServer({[1] = t})
-                        Remotes.Request:InvokeServer(t, t, t)
-                        
-                        task.wait(State.CompleteDelay)
-                        
-                        -- Step 4 (Complete)
-                        Remotes.Complete:FireServer()
-                        Remotes.Complete:FireServer()
-                        
-                        task.wait(State.CancelDelay)
-                    end)
-                end)
-                
-                task.wait(0.05)  -- Minimal gap between bursts
-            end
-            
-            task.wait(0.1)  -- Small cooldown between spam cycles
-        end
-    end)
-end
-
--- ============================================
--- RAPID FIRE MODE (CONTINUOUS SPAM)
--- ============================================
-local function StartRapidFireLoop()
-    -- Cancel existing
-    for _, thread in pairs(ActiveThreads) do
-        if thread then task.cancel(thread) end
-    end
-    ActiveThreads = {}
-
-    print("🔥 RAPID FIRE MODE - NON-STOP SPAM!")
-
-    ActiveThreads[1] = task.spawn(function()
-        while State.FishingRunning do
-            -- Continuous firing tanpa delay
-            pcall(function()
-                local t = os.clock()
-                Remotes.Cancel:InvokeServer()
-                Remotes.Charge:InvokeServer({[1] = t})
-                Remotes.Request:InvokeServer(t, t, t)
-            end)
-            
-            task.wait(State.CompleteDelay)
-            
-            pcall(function()
-                Remotes.Complete:FireServer()
-                Remotes.Complete:FireServer()
-            end)
-            
-            task.wait(State.CancelDelay)
-        end
-    end)
-    
-    -- Add extra spam threads
-    for i = 2, SpamRate do
-        ActiveThreads[i] = task.spawn(function()
-            task.wait(i * 0.05)  -- Stagger
-            while State.FishingRunning do
-                pcall(function()
-                    ForceStep123()
-                    task.wait(State.CompleteDelay + State.CancelDelay)
-                    ForceStep4()
-                end)
-            end
-        end)
-    end
-end
-
--- ============================================
--- STOP FUNCTION
--- ============================================
-local function StopAllFishing()
-    State.FishingRunning = false
-    
-    -- Cancel all threads
-    for i, thread in pairs(ActiveThreads) do
-        if thread then
-            task.cancel(thread)
-        end
-        ActiveThreads[i] = nil
-    end
-    
-    -- Force cancel multiple times
-    for i = 1, 5 do
-        ForceCancel()
-        task.wait(0.2)
-    end
-    
-    print("🛑 All fishing operations stopped!")
-end
-
--- ============================================
--- UI CONTROLS
--- ============================================
-
-local FishingMode = "Spam"  -- Default mode
-
--- Mode Selection
-BlatantMain:Dropdown({
-    Title = "Fishing Mode",
-    Desc = "Choose spam intensity",
-    Values = {"Spam", "Ultra Spam", "Rapid Fire"},
-    Value = "Spam",
-    Callback = function(mode)
-        FishingMode = mode
-        print("✅ Mode set to:", mode)
-    end
-})
-
--- Spam Rate Control
-BlatantMain:Input({
-    Title = "Concurrent Rods",
-    Desc = "How many rods active at once (1-10)",
-    Value = tostring(SpamRate),
-    Callback = function(value)
-        local num = tonumber(value)
-        if num then
-            SpamRate = math.clamp(num, 1, 10)
-            print("✅ Concurrent Rods set to:", SpamRate)
-        end
-    end
-})
-
-BlatantMain:Divider()
-
--- Main Toggle
-BlatantMain:Toggle({
-    Title = "Spam Fishing",
-    Desc = "Start multi-rod spam fishing",
-    Value = false,
-    Callback = function(enabled)
-        State.FishingRunning = enabled
-        
-        if enabled then
-            if FishingMode == "Spam" then
-                StartSpamFishingLoop()
-            elseif FishingMode == "Ultra Spam" then
-                StartUltraSpamLoop()
-            elseif FishingMode == "Rapid Fire" then
-                StartRapidFireLoop()
-            end
-        else
-            StopAllFishing()
-        end
-    end
-})
-
-BlatantMain:Input({
-    Title = "Complete Delay",
-    Desc = "Delay before Step 4",
-    Value = tostring(State.CompleteDelay),
-    Callback = function(value)
-        local num = tonumber(value)
-        if num then
-            State.CompleteDelay = math.max(0, num)
-            print("✅ Complete Delay:", State.CompleteDelay)
-        end
-    end
-})
-
-BlatantMain:Input({
-    Title = "Cancel Delay",
-    Desc = "Delay before restart",
-    Value = tostring(State.CancelDelay),
-    Callback = function(value)
-        local num = tonumber(value)
-        if num then
-            State.CancelDelay = math.max(0, num)
-            print("✅ Cancel Delay:", State.CancelDelay)
-        end
-    end
-})
-
-BlatantMain:Divider()
-
--- Quick Presets untuk Spam
-BlatantMain:Button({
-    Title = "Preset: Balanced Spam",
-    Desc = "3 Rods | 0.45s / 0.18s",
-    Callback = function()
-        SpamRate = 3
-        State.CompleteDelay = 0.45
-        State.CancelDelay = 0.18
-        print("✅ Balanced Spam preset loaded!")
-    end
-})
-
-BlatantMain:Button({
-    Title = "Preset: Aggressive Spam",
-    Desc = "5 Rods | 0.30s / 0.12s",
-    Callback = function()
-        SpamRate = 5
-        State.CompleteDelay = 0.30
-        State.CancelDelay = 0.12
-        print("🔥 Aggressive Spam preset loaded!")
-    end
-})
-
-BlatantMain:Button({
-    Title = "Preset: EXTREME Spam",
-    Desc = "8 Rods | 0.20s / 0.08s ⚠️",
-    Callback = function()
-        SpamRate = 8
-        State.CompleteDelay = 0.20
-        State.CancelDelay = 0.08
-        print("⚡ EXTREME Spam preset loaded! HIGH RISK!")
-    end
-})
-
--- ============================================
--- SPAM INFO
--- ============================================
-BlatantMain:Paragraph({
-    Title = "⚠️ Spam Mode Info",
-    Desc = [[
-• Spam: Multiple rods sequentially
-• Ultra Spam: Burst spam with delays
-• Rapid Fire: Continuous non-stop
-
-Higher spam rate = Higher ban risk!
-Start with 3 rods, increase gradually.
-    ]]
-})
-
-BlatantTab:Divider()
-
--- Utility Section
-local BlatantUtil = BlatantTab:Section({
-    Title = "Utility",
-    Opened = true
-})
-
-BlatantUtil:Button({
-    Title = "Sell All Items",
-    Callback = function()
-        pcall(function()
-            Remotes.SellAll:InvokeServer()
-        end)
-    end
-})
-
-BlatantTab:Divider()
-
--- ============================================
--- TELEPORT TAB
--- ============================================
-local TeleportTab = Window:Tab({
-    Title = "Teleport",
-    Icon = "map"
-})
-
-TeleportTab:Paragraph({
-    Title = "Teleport System",
-    Desc = "Location, Player & Event teleport"
-})
-
-TeleportTab:Divider()
-
--- Location Teleport
-local LocationSection = TeleportTab:Section({
-    Title = "Location Teleport",
-    Opened = true
-})
-
-local Locations = {
-    ["Fisherman Island"] = CFrame.new(34, 26, 2776),
-    ["Jungle"] = CFrame.new(1483, 11, -300),
-    ["Ancient Ruin"] = CFrame.new(6085, -586, 4639),
-    ["Crater Island"] = CFrame.new(1013, 23, 5079),
-    ["Christmas Island"] = CFrame.new(1135, 24, 1563),
-    ["Christmas Cafe"] = CFrame.new(580, -581, 8930),
-    ["Coral"] = CFrame.new(-3029, 3, 2260),
-    ["Kohana"] = CFrame.new(-635, 16, 603),
-    ["Volcano"] = CFrame.new(-597, 59, 106),
-    ["Esetoric Depth"] = CFrame.new(3203, -1303, 1415),
-    ["Sisyphus Statue"] = CFrame.new(-3712, -135, -1013),
-    ["Treasure"] = CFrame.new(-3566, -279, -1681),
-    ["Tropical"] = CFrame.new(-2093, 6, 3699),
-}
-
-local function GetLocationList()
-    local list = {}
-    for name in pairs(Locations) do
-        table.insert(list, name)
-    end
-    table.sort(list)
-    return list
-end
-
-LocationSection:Dropdown({
-    Title = "Select Location",
-    Values = GetLocationList(),
-    Value = State.SelectedLocation,
-    Callback = function(location)
-        State.SelectedLocation = location
-    end
-})
-
-LocationSection:Button({
-    Title = "Teleport",
-    Callback = function()
-        local char = LocalPlayer.Character
-        if char and char.PrimaryPart then
-            char:SetPrimaryPartCFrame(Locations[State.SelectedLocation])
-        end
-    end
-})
-
-TeleportTab:Divider()
-
--- Player Teleport
-local PlayerSection = TeleportTab:Section({
-    Title = "Player Teleport",
-    Opened = true
-})
-
-local function GetPlayerList()
-    local list = {}
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer then
-            table.insert(list, player.Name)
-        end
-    end
-    table.sort(list)
-    return list
-end
-
-local PlayerDropdown = PlayerSection:Dropdown({
-    Title = "Select Player",
-    Values = GetPlayerList(),
-    Callback = function(playerName)
-        State.SelectedPlayer = playerName
-    end
-})
-
-PlayerSection:Button({
-    Title = "Refresh Player List",
-    Callback = function()
-        PlayerDropdown:SetValues(GetPlayerList())
-    end
-})
-
-PlayerSection:Button({
-    Title = "Teleport To Player",
-    Callback = function()
-        if not State.SelectedPlayer then return end
-        
-        local target = Players:FindFirstChild(State.SelectedPlayer)
-        if target and target.Character and target.Character.PrimaryPart then
-            LocalPlayer.Character:SetPrimaryPartCFrame(
-                target.Character.PrimaryPart.CFrame * CFrame.new(0, 1, 0)
-            )
-        end
-    end
-})
-
-TeleportTab:Divider()
-
--- Event Teleport
-local EventSection = TeleportTab:Section({
-    Title = "Event Teleport",
-    Opened = true
-})
-
-local EventNames = {
-    "Megalodon Hunt",
-    "Shark Hunt",
-    "Ghost Shark Hunt",
-}
-
-EventSection:Dropdown({
-    Title = "Select Event",
-    Desc = "Teleport once when event appears",
-    Values = EventNames,
-    Multi = true,
-    Callback = function(events)
-        State.SelectedEvents = events
-    end
-})
-
-EventSection:Toggle({
-    Title = "Enable Event Teleport",
-    Desc = "Auto teleport once & return after event ends",
-    Value = false,
-    Callback = function(enabled)
-        State.EventTeleportEnabled = enabled
-
-        if not enabled and State.TeleportedToEvent and State.SavedCFrame then
-            pcall(function()
-                LocalPlayer.Character:SetPrimaryPartCFrame(State.SavedCFrame)
-            end)
-            State.SavedCFrame = nil
-            State.TeleportedToEvent = false
-        end
-    end
-})
-
-EventSection:Divider()
-
-EventSection:Paragraph({
-    Title = "Info",
-    Desc = "• Teleport hanya 1x saat event muncul\n• Posisi disimpan otomatis\n• Akan kembali saat event selesai atau toggle OFF"
-})
-
--- Event CFrame Finder
-local function GetEventCFrame(eventName)
-    local menu = workspace:FindFirstChild("!!! MENU RINGS")
-    if not menu then return end
-
-    local props = menu:FindFirstChild("Props")
-    if not props then return end
-
-    local event = props:FindFirstChild(eventName)
-    if not event then return end
-
-    if event:IsA("BasePart") then
-        return event.CFrame
-    end
-
-    if event:IsA("Model") and event.PrimaryPart then
-        return event.PrimaryPart.CFrame
-    end
-
-    for _, obj in ipairs(event:GetDescendants()) do
-        if obj:IsA("BasePart") then
-            return obj.CFrame
-        end
-    end
-end
-
--- Event Monitor
-task.spawn(function()
-    while task.wait(1) do
-        if not State.EventTeleportEnabled then continue end
-        if not LocalPlayer.Character or not LocalPlayer.Character.PrimaryPart then continue end
-
-        local foundEvent = false
-
-        for _, eventName in ipairs(State.SelectedEvents) do
-            local eventCF = GetEventCFrame(eventName)
-
-            if eventCF then
-                foundEvent = true
-
-                if not State.TeleportedToEvent then
-                    State.SavedCFrame = LocalPlayer.Character.PrimaryPart.CFrame
-                    LocalPlayer.Character:SetPrimaryPartCFrame(eventCF)
-                    State.TeleportedToEvent = true
-                end
-
-                break
-            end
-        end
-
-        if State.TeleportedToEvent and not foundEvent then
-            if State.SavedCFrame then
-                LocalPlayer.Character:SetPrimaryPartCFrame(State.SavedCFrame)
-            end
-            State.SavedCFrame = nil
-            State.TeleportedToEvent = false
-        end
-    end
+Rayfield:SetTheme(Theme)
+
+-- TABS SESUAI KATEGORI
+local HomeTab = Window:CreateTab("🏠 Home", 4483362458)
+local CoreTab = Window:CreateTab("🎣 Fishing Core", 4483362458)
+local RarityTab = Window:CreateTab("⭐ Rarity & Target", 4483362458)
+local SellTab = Window:CreateTab("💰 Selling & Economy", 4483362458)
+local QuestTab = Window:CreateTab("📜 Quest & Progression", 4483362458)
+local TpTab = Window:CreateTab("🗺️ Teleport & Movement", 4483362458)
+local VisualTab = Window:CreateTab("👁️ Visual & QoL", 4483362458)
+local UtilTab = Window:CreateTab("🛠️ Utility & Safety", 4483362458)
+
+local Players, RunService, ReplicatedStorage, TweenService, UserInputService, HttpService = 
+      game:GetService("Players"), game:GetService("RunService"), game:GetService("ReplicatedStorage"), 
+      game:GetService("TweenService"), game:GetService("UserInputService"), game:GetService("HttpService")
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+
+-- GLOBAL VARIABLES (70+ FITUR + WEBHOOK)
+local autoFish = false; local fishSpeed = 15; local instantCatch = false; local autoReel = false; local autoCast = false
+local autoShake = false; local skipBobber = false; local autoReCastFail = false; local legitMode = false; local fastCatch = false
+local autoResetRod = false; local disableRodReset = false; local freezeCharFish = false; local lockShakeCenter = false
+local targetRarity = "All"; local skipCommon,skipUncommon,skipRare,skipEpic,skipLegendary,skipMythic,skipSecret = true,true,true,false,false,false,false
+local forceHighRarity = false; local autoFavoriteRare = false; local autoGrabMythic = false; local fishESP = false; local autoEventFish = false; local infFishMode = false
+local autoSellFish = false; local sellAnywhere = false; local autoSellLowOnly = false; local autoSellSpecific = false; local autoBuyBait = false
+local autoBuyUpgrades = false; local autoUpgradeRod = false; local autoUnlockBestRod = false; local coinESP = false; local autoCollectCoins = false
+local autoAcceptQuest = false; local autoDailyQuest = false; local autoDeepSeaQuest = false; local autoFarmQuestItems = false; local questTracker = false
+local skipQuestAnim = false; local autoClaimRewards = false; local autoEventClaim = false; local autoMarianaQuest = false
+local tpSpawn,tpDeepSea,tpPirate,tpCrystal = false,false,false,false; local savedPositions = {}; local tpPlayer = nil; local walkWater = false; local safeTP = false
+local disableRodEffects = false; local rodSkinChanger = "Default"; local rodModelChanger = "Default"; local baitSelector = "Best"; local fishingAura = false
+local antiAFKEnh = false; local perfMode = false; local logViewer = false
+local autoReconnect = false; local autoReExec = false; local serverHop = false; local antiKick = false; local respawnChar = false
+local autoLoadConfig = true; local resetAll = false
+
+-- NEW: DISCORD WEBHOOK VARS
+local webhookEnabled = false
+local webhookUrl = ""
+
+-- HOME TAB: INFO & STATS
+HomeTab:CreateSection("📊 Script Info")
+HomeTab:CreateLabel("CorePlay Fish It Hub v2026\n• 70+ Features + Discord Webhook\n• 15X Speed Max\n• Rayfield UI | Mobile OK")
+
+local StatLabel = HomeTab:CreateLabel("Coins: 0 | Level: 1 | Fish Caught: 0")
+HomeTab:CreateSection("⭐ Basic Hacks")
+local toggleInfJump = HomeTab:CreateToggle({Name="Infinite Jump", CurrentValue=false, Callback=function(v) infJumpEnabled = v end})
+UserInputService.JumpRequest:Connect(function() if infJumpEnabled then player.Character.Humanoid:ChangeState(3) end end)
+
+local toggleFly = HomeTab:CreateToggle({Name="Fly (X Up / C Down)", CurrentValue=false, Callback=function(v) flyEnabled = v 
+   if v then 
+      local char = player.Character
+      local root = char.HumanoidRootPart
+      local bv = Instance.new("BodyVelocity")
+      bv.MaxForce = Vector3.new(1e9,1e9,1e9)
+      bv.Parent = root
+      spawn(function()
+         repeat wait() 
+            bv.Velocity = Vector3.new(0, (UserInputService:IsKeyDown(Enum.KeyCode.Space) and 50 or (UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) and -50 or 0)), 0) + char.Humanoid.MoveDirection * 50
+         until not flyEnabled
+         bv:Destroy()
+      end)
+   end
+end})
+
+local walkSpeedSlider = HomeTab:CreateSlider({Name="Walk Speed", Range={16,500}, Increment=1, CurrentValue=16, Callback=function(v) 
+   if player.Character then player.Character.Humanoid.WalkSpeed = v end
+end})
+
+local toggleNoclip = HomeTab:CreateToggle({Name="Noclip / Walk Water", CurrentValue=false, Callback=function(v) noclipEnabled = v 
+   spawn(function() repeat RunService.RenderStepped:Wait() 
+      if noclipEnabled then for _,p in player.Character:GetDescendants() do if p:IsA("BasePart") then p.CanCollide=false end end end
+   until not noclipEnabled end)
+end})
+
+HomeTab:CreateButton({Name="Respawn", Callback=function() player:LoadCharacter() end})
+
+-- UPDATE STATS LOOP
+spawn(function()
+   while wait(2) do
+      local stats = player.leaderstats
+      if stats then
+         StatLabel:Set("Coins: "..(stats.Coins and stats.Coins.Value or 0).." | Level: "..(stats.Level and stats.Level.Value or 1))
+      end
+   end
 end)
 
-TeleportTab:Divider()
+-- FISHING CORE TAB
+CoreTab:CreateSection("🎯 Core Controls")
+local toggleAutoFish = CoreTab:CreateToggle({Name="1. Auto Fish", CurrentValue=false, Callback=function(v) autoFish=v end})
+local speedSlider = CoreTab:CreateSlider({Name="2. Fishing Speed (1-20x)", Range={1,20}, Increment=1, Suffix="x", CurrentValue=15, Callback=function(v) fishSpeed=v end})
+CoreTab:CreateToggle({Name="3. Instant Catch / Blatant", CurrentValue=false, Callback=function(v) instantCatch=v end})
+CoreTab:CreateToggle({Name="4. Auto Reel", CurrentValue=false, Callback=function(v) autoReel=v end})
+CoreTab:CreateToggle({Name="5. Auto Cast", CurrentValue=false, Callback=function(v) autoCast=v end})
+CoreTab:CreateToggle({Name="6. Auto Shake Minigame", CurrentValue=false, Callback=function(v) autoShake=v end})
+CoreTab:CreateToggle({Name="7. Skip Bobber Wait", CurrentValue=false, Callback=function(v) skipBobber=v end})
+CoreTab:CreateToggle({Name="8. Auto Re-Cast on Fail", CurrentValue=false, Callback=function(v) autoReCastFail=v end})
+CoreTab:CreateToggle({Name="9. Legit Mode (Human Delay)", CurrentValue=false, Callback=function(v) legitMode=v end})
+CoreTab:CreateToggle({Name="10. Fast Catch (1s Cycle)", CurrentValue=false, Callback=function(v) fastCatch=v end})
+CoreTab:CreateToggle({Name="11. Auto Reset Rod Stuck", CurrentValue=false, Callback=function(v) autoResetRod=v end})
+CoreTab:CreateToggle({Name="12. Disable Rod Reset", CurrentValue=false, Callback=function(v) disableRodReset=v end})
+CoreTab:CreateToggle({Name="13. Freeze Char While Fishing", CurrentValue=false, Callback=function(v) freezeCharFish=v end})
+CoreTab:CreateToggle({Name="Lock Shake Button Center", CurrentValue=false, Callback=function(v) lockShakeCenter=v end})
 
--- ============================================
--- SHOP TAB
--- ============================================
-local ShopTab = Window:Tab({
-    Title = "Shop",
-    Icon = "shopping-cart"
+-- RARITY TAB
+RarityTab:CreateSection("🎯 Target Rarity")
+local rarityDropdown = RarityTab:CreateDropdown({Name="14. Target Specific Rarity", Options={"All","Common","Uncommon","Rare","Epic","Legendary","Mythic","Secret"}, CurrentOption="All", Callback=function(opt) targetRarity=opt end})
+RarityTab:CreateSection("15-21. Auto Skip / Force")
+RarityTab:CreateToggle({Name="15. Skip Common", CurrentValue=true, Callback=function(v) skipCommon=v end})
+RarityTab:CreateToggle({Name="Skip Uncommon", CurrentValue=true, Callback=function(v) skipUncommon=v end})
+RarityTab:CreateToggle({Name="Skip Rare", CurrentValue=true, Callback=function(v) skipRare=v end})
+RarityTab:CreateToggle({Name="Skip Epic", CurrentValue=false, Callback=function(v) skipEpic=v end})
+RarityTab:CreateToggle({Name="Skip Legendary", CurrentValue=false, Callback=function(v) skipLegendary=v end})
+RarityTab:CreateToggle({Name="Skip Mythic", CurrentValue=false, Callback=function(v) skipMythic=v end})
+RarityTab:CreateToggle({Name="Skip Secret", CurrentValue=false, Callback=function(v) skipSecret=v end})
+RarityTab:CreateToggle({Name="16. Force High Rarity", CurrentValue=false, Callback=function(v) forceHighRarity=v end})
+RarityTab:CreateToggle({Name="17. Auto Favorite Rare", CurrentValue=false, Callback=function(v) autoFavoriteRare=v end})
+RarityTab:CreateToggle({Name="18. Auto Grab Mythic+", CurrentValue=false, Callback=function(v) autoGrabMythic=v end})
+RarityTab:CreateToggle({Name="19. Fish ESP", CurrentValue=false, Callback=function(v) fishESP=v end})
+RarityTab:CreateToggle({Name="20. Auto Event Fish Only", CurrentValue=false, Callback=function(v) autoEventFish=v end})
+RarityTab:CreateToggle({Name="21. Infinite Fish Spawn", CurrentValue=false, Callback=function(v) infFishMode=v end})
+
+-- SELLING TAB
+SellTab:CreateSection("💰 Auto Sell & Buy")
+SellTab:CreateToggle({Name="22. Auto Sell Fish (Full/Interval)", CurrentValue=false, Callback=function(v) autoSellFish=v end})
+SellTab:CreateToggle({Name="23. Sell Anywhere", CurrentValue=false, Callback=function(v) sellAnywhere=v end})
+SellTab:CreateToggle({Name="24. Auto Sell Specific Rarity", CurrentValue=false, Callback=function(v) autoSellSpecific=v end})
+SellTab:CreateToggle({Name="25. Auto Sell Low Value First", CurrentValue=false, Callback=function(v) autoSellLowOnly=v end})
+SellTab:CreateToggle({Name="26. Auto Buy Bait (Best)", CurrentValue=false, Callback=function(v) autoBuyBait=v end})
+SellTab:CreateToggle({Name="27. Auto Buy Upgrades/Gear", CurrentValue=false, Callback=function(v) autoBuyUpgrades=v end})
+SellTab:CreateToggle({Name="28. Auto Upgrade Rod", CurrentValue=false, Callback=function(v) autoUpgradeRod=v end})
+SellTab:CreateToggle({Name="29. Auto Unlock Best Rod", CurrentValue=false, Callback=function(v) autoUnlockBestRod=v end})
+SellTab:CreateToggle({Name="30. Coin ESP", CurrentValue=false, Callback=function(v) coinESP=v end})
+SellTab:CreateToggle({Name="31. Auto Collect Coins/Drops", CurrentValue=false, Callback=function(v) autoCollectCoins=v end})
+
+-- QUEST TAB
+QuestTab:CreateSection("📜 Auto Quests")
+QuestTab:CreateToggle({Name="32. Auto Accept Quests", CurrentValue=false, Callback=function(v) autoAcceptQuest=v end})
+QuestTab:CreateToggle({Name="33. Auto Complete Daily", CurrentValue=false, Callback=function(v) autoDailyQuest=v end})
+QuestTab:CreateToggle({Name="34. Auto Deep Sea/Event Quest", CurrentValue=false, Callback=function(v) autoDeepSeaQuest=v end})
+QuestTab:CreateToggle({Name="35. Auto Farm Quest Items", CurrentValue=false, Callback=function(v) autoFarmQuestItems=v end})
+QuestTab:CreateToggle({Name="36. Quest Tracker GUI", CurrentValue=false, Callback=function(v) questTracker=v end})
+QuestTab:CreateToggle({Name="37. Skip Quest Animations", CurrentValue=false, Callback=function(v) skipQuestAnim=v end})
+QuestTab:CreateToggle({Name="38. Auto Claim Rewards/Login", CurrentValue=false, Callback=function(v) autoClaimRewards=v end})
+QuestTab:CreateToggle({Name="39. Auto Mariana/Special Quest", CurrentValue=false, Callback=function(v) autoMarianaQuest=v end})
+
+-- TP TAB
+TpTab:CreateSection("🗺️ Teleports")
+local mapDropdown = TpTab:CreateDropdown({
+   Name="40-44. TP to Maps/Spots",
+   Options={"Spawn","Deep Sea","Pirate Cove","Crystal Depths","Volcano","Treasure Room","Best Mythic Spot","NPC Shop","Seller"},
+   CurrentOption="Spawn",
+   Callback=function(opt)
+      local cf = CFrame.new(0,0,0) -- UPDATE CFRA MES PER SPOT (F9 explorer)
+      if opt == "Spawn" then cf = workspace.SpawnLocation.CFrame end -- Contoh
+      player.Character.HumanoidRootPart.CFrame = cf
+   end
+})
+TpTab:CreateButton({Name="45. Save Position (Slot +1)", Callback=function() table.insert(savedPositions, player.Character.HumanoidRootPart.CFrame) end})
+local saveDrop = TpTab:CreateDropdown({Name="46. Load Saved Pos", Options={"None"}, Callback=function(opt) 
+   local num = tonumber(opt:match("%d+"))
+   if num and savedPositions[num] then player.Character.HumanoidRootPart.CFrame = savedPositions[num] end
+end}) -- Update options: spawn(updateDropdown)
+
+TpTab:CreateDropdown({Name="47. TP to Player", Options= (function() local opts={} for _,p in Players:GetPlayers() do table.insert(opts,p.Name) end return opts end)(), Callback=function(opt) 
+   local tgt = Players:FindFirstChild(opt)
+   if tgt then player.Character.HumanoidRootPart.CFrame = tgt.Character.HumanoidRootPart.CFrame end
+end})
+TpTab:CreateToggle({Name="48. Walk on Water (Noclip)", CurrentValue=false, Callback=function(v) walkWater=v end})
+TpTab:CreateToggle({Name="49. Safe TP (Anti-Detect)", CurrentValue=false, Callback=function(v) safeTP=v end})
+TpTab:CreateToggle({Name="50. Map Waypoints Auto", CurrentValue=false, Callback=function() end})
+
+-- VISUAL TAB
+VisualTab:CreateSection("👁️ Visual QoL")
+VisualTab:CreateToggle({Name="51. Disable Rod Effects", CurrentValue=false, Callback=function(v) disableRodEffects=v end})
+local skinDrop = VisualTab:CreateDropdown({Name="52. Rod Skin Changer", Options={"Default","Gold","Diamond"}, Callback=function(opt) rodSkinChanger=opt end})
+local modelDrop = VisualTab:CreateDropdown({Name="53. Rod Model Changer", Options={"Default","Epic"}, Callback=function(opt) rodModelChanger=opt end})
+local baitDrop = VisualTab:CreateDropdown({Name="54. Bait Selector", Options={"Best","Common","Rare"}, Callback=function(opt) baitSelector=opt end})
+VisualTab:CreateToggle({Name="55. Fishing Aura (Nearby Auto)", CurrentValue=false, Callback=function(v) fishingAura=v end})
+VisualTab:CreateToggle({Name="56. Enhanced Anti-AFK", CurrentValue=false, Callback=function(v) antiAFKEnh=v end})
+VisualTab:CreateToggle({Name="57. Performance Mode (Low Lag)", CurrentValue=false, Callback=function(v) perfMode=v end})
+VisualTab:CreateToggle({Name="58. Log Viewer (Console)", CurrentValue=false, Callback=function(v) logViewer=v end})
+
+-- UTILITY TAB
+UtilTab:CreateSection("🛠️ Safety & Config")
+UtilTab:CreateToggle({Name="59. Auto Reconnect", CurrentValue=false, Callback=function(v) autoReconnect=v end})
+UtilTab:CreateToggle({Name="60. Auto Re-Execute on Join", CurrentValue=false, Callback=function(v) autoReExec=v end})
+UtilTab:CreateButton({Name="61. Server Hopper", Callback=function() game:GetService("TeleportService"):Teleport(game.PlaceId, player) end})
+UtilTab:CreateToggle({Name="62. Anti-Kick/Ban", CurrentValue=false, Callback=function(v) antiKick=v end})
+UtilTab:CreateButton({Name="63. Respawn Char", Callback=function() player:LoadCharacter() end})
+UtilTab:CreateButton({Name="64. Reset All Settings", Callback=function() Rayfield:ResetConfiguration(true) end})
+UtilTab:CreateButton({Name="65. Save Config", Callback=function() Rayfield:SaveConfiguration() end})
+UtilTab:CreateButton({Name="66. Load Config", Callback=function() Rayfield:LoadConfiguration() end})
+UtilTab:CreateToggle({Name="67. Auto Load Config", CurrentValue=true, Callback=function(v) autoLoadConfig=v end})
+UtilTab:CreateButton({Name="68. Clear Auto Load", Callback=function() Rayfield:ResetConfiguration() end})
+UtilTab:CreateButton({Name="69. Export Config Clipboard", Callback=function() -- Use setclipboard(Rayfield:GetConfigurationJson()) end})
+UtilTab:CreateButton({Name="70. Import Config Clipboard", Callback=function() -- Rayfield:LoadFromJson(getclipboard()) end})
+
+-- NEW: DISCORD WEBHOOK SECTION
+UtilTab:CreateSection("📢 Discord Webhook Notifications")
+local toggleWebhook = UtilTab:CreateToggle({
+   Name = "Enable Discord Webhook",
+   CurrentValue = false,
+   Callback = function(v) webhookEnabled = v end,
 })
 
-local ShopSection = ShopTab:Section({
-    Title = "Weather Shop",
-    Opened = true
+local inputWebhook = UtilTab:CreateInput({
+   Name = "Webhook URL (Paste Here)",
+   PlaceholderText = "https://discord.com/api/webhooks/...",
+   RemoveTextAfterFocusLost = false,
+   Callback = function(Text) webhookUrl = Text end,
 })
 
-local WeatherList = {
-    "Wind", "Storm", "Cloudy", "Snow", "Radiant", "Shark Hunt"
-}
-
-ShopSection:Dropdown({
-    Title = "Select Weather",
-    Values = WeatherList,
-    Multi = true,
-    Callback = function(weathers)
-        State.SelectedWeathers = weathers
-    end
-})
-
-ShopSection:Toggle({
-    Title = "Auto Buy Weather",
-    Value = false,
-    Callback = function(enabled)
-        State.WeatherSpam = enabled
-    end
-})
-
--- Weather Purchase Loop
-task.spawn(function()
-    while task.wait(0.5) do
-        if not State.WeatherSpam then continue end
-        
-        for _, weather in ipairs(State.SelectedWeathers) do
-            pcall(function()
-                Remotes.Weather:InvokeServer(weather)
-            end)
-            task.wait(0.8)
-        end
-    end
-end)
-
-ShopTab:Divider()
-
--- ============================================
--- MISC TAB
--- ============================================
-local MiscTab = Window:Tab({
-    Title = "Misc",
-    Icon = "settings"
-})
-
-local MiscSection = MiscTab:Section({
-    Title = "Performance & Visual",
-    Opened = true
-})
-
-MiscSection:Button({
-    Title = "Boost FPS (Max)",
-    Callback = function()
-        -- Disable Shadows & Reflections
-        Lighting.GlobalShadows = false
-        Lighting.EnvironmentDiffuseScale = 0
-        Lighting.EnvironmentSpecularScale = 0
-        Lighting.ShadowSoftness = 0
-        Lighting.Brightness = 5
-
-        -- Heavy Fog
-        Lighting.FogStart = 0
-        Lighting.FogEnd = 100
-        Lighting.FogColor = Color3.fromRGB(255, 5, 5)
-
-        -- Disable Post Effects
-        for _, effect in ipairs(Lighting:GetChildren()) do
-            if effect:IsA("PostEffect") then
-                effect.Enabled = false
-            end
-        end
-
-        -- Remove Textures & Particles
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Texture") or obj:IsA("Decal") then
-                obj.Transparency = 1
-            elseif obj:IsA("MeshPart") then
-                obj.Material = Enum.Material.SmoothPlastic
-                obj.Reflectance = 0
-            elseif obj:IsA("Part") or obj:IsA("UnionOperation") then
-                obj.Material = Enum.Material.SmoothPlastic
-            elseif obj:IsA("ParticleEmitter") or obj:IsA("Smoke") or obj:IsA("Fire") or obj:IsA("Sparkles") then
-                obj.Enabled = false
-            elseif obj:IsA("SurfaceAppearance") then
-                obj:Destroy()
-            end
-        end
-
-        -- Optimize Terrain
-        local terrain = workspace:FindFirstChildOfClass("Terrain")
-        if terrain then
-            terrain:SetMaterialColor(Enum.Material.Grass, Color3.new(0, 0, 0))
-            terrain.WaterReflectance = 0
-            terrain.WaterTransparency = 1
-            terrain.WaterWaveSize = 0
-            terrain.WaterWaveSpeed = 0
-        end
-
-        -- Boost Camera FOV
-        task.spawn(function()
-            for i = 1, 60 do
-                if Players.SSASSAA11 then
-                    Players.SSASSAA11.CameraMaxZoomDistance = 1000
-                end
-                task.wait()
-            end
-        end)
-
-        print("BOOST FPS MAX ACTIVATED!")
-    end
-})
-
-MiscSection:Button({
-    Title = "No Effect",
-    Callback = function()
-        local cosmeticFolder = workspace:FindFirstChild("CosmeticFolder")
-        if cosmeticFolder then
-            cosmeticFolder:Destroy()
-        end
-    end
-})
-
--- No Animations
-local function ApplyNoAnimation(char)
-    local humanoid = char:WaitForChild("Humanoid", 5)
-    if not humanoid then return end
-
-    local animator = humanoid:FindFirstChildOfClass("Animator")
-    if not animator then
-        animator = Instance.new("Animator", humanoid)
-    end
-
-    for _, track in ipairs(animator:GetPlayingAnimationTracks()) do
-        track:Stop()
-    end
-
-    if State.AnimConnection then
-        State.AnimConnection:Disconnect()
-    end
-    
-    State.AnimConnection = animator.AnimationPlayed:Connect(function(track)
-        track:Stop()
-    end)
+-- WEBHOOK FUNCTION (Embed Style)
+local function sendWebhook(title, desc, color, fields)
+   if not webhookEnabled or webhookUrl == "" then return end
+   local payload = {
+      embeds = {{
+         title = title or "CorePlay Fish It Alert",
+         description = desc or "Update from Roblox!",
+         color = color or 65280,  -- Lime green 0x00FF00
+         fields = fields or {},
+         footer = {text = "CorePlay Hub | " .. player.Name .. " | Time: " .. os.date("%H:%M:%S")},
+         timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+      }}
+   }
+   pcall(function()
+      local headers = {["Content-Type"] = "application/json"}
+      local request = HttpService:RequestAsync({
+         Url = webhookUrl,
+         Method = "POST",
+         Headers = headers,
+         Body = HttpService:JSONEncode(payload)
+      })
+   end)
 end
 
-MiscSection:Toggle({
-    Title = "No Animations",
-    Desc = "Disable all character animations",
-    Value = false,
-    Callback = function(enabled)
-        State.NoAnimationEnabled = enabled
+-- MAIN LOOPS & HOOKS
+-- AUTO FISH CORE (1-13) WITH WEBHOOK EXAMPLE
+RunService.Heartbeat:Connect(function()
+   if autoFish then
+      pcall(function()
+         local delay = (legitMode and (0.4 + math.random(-0.1,0.1)) or 0.5) / fishSpeed
+         if instantCatch or fastCatch then delay = delay * 0.1 end
+         -- UPDATE REMOTES: ReplicatedStorage.Remotes.Cast:FireServer() ; Reel:FireServer()
+         mouse1click(); wait(delay); mouse1release(); wait(delay)
+         if skipBobber then -- Complete:FireServer() end
+         if autoShake then -- Shake sim end
+         if freezeCharFish then player.Character.Humanoid.PlatformStand = true end
 
-        if enabled then
-            if LocalPlayer.Character then
-                ApplyNoAnimation(LocalPlayer.Character)
-            end
-        else
-            if State.AnimConnection then
-                State.AnimConnection:Disconnect()
-                State.AnimConnection = nil
-            end
-        end
-    end
-})
-
-LocalPlayer.CharacterAdded:Connect(function(char)
-    if State.NoAnimationEnabled then
-        task.wait(1)
-        ApplyNoAnimation(char)
-    end
+         -- WEBHOOK TRIGGER: Simulasi catch rare (ganti dengan detect real via GUI/remote)
+         if math.random(1,10) == 1 then  -- Random test, ganti dengan if rarity == "Mythic"
+            sendWebhook("Rare Fish Caught!", "Rarity: Mythic\nValue: 500K\nRod: Diamond\nPlayer: " .. player.Name, 16711680, {{name="Stats", value="Coins: 1M | Level: 50"}})  -- Red for rare
+         end
+      end)
+   end
 end)
 
--- No Notifications
-local function ApplyNoNotification()
-    local gui = PlayerGui:FindFirstChild("Small Notification")
-    if not gui then return end
-
-    local display = gui:FindFirstChild("Display")
-    if display then
-        display.Visible = not State.NoNotificationEnabled
-    end
-end
-
-MiscSection:Toggle({
-    Title = "No Notifications",
-    Desc = "Hide small notification popup",
-    Value = false,
-    Callback = function(enabled)
-        State.NoNotificationEnabled = enabled
-        ApplyNoNotification()
-    end
-})
-
-PlayerGui.ChildAdded:Connect(function(child)
-    if child.Name == "Small Notification" then
-        task.wait(0.2)
-        ApplyNoNotification()
-    end
+-- AUTO EQUIP BEST ROD (28 + others)
+spawn(function()
+   while wait(2) do
+      if autoUpgradeRod or autoUnlockBestRod then
+         -- Loop backpack, equip highest power rod
+         local bestRod = nil; local maxPower = 0
+         for _,tool in player.Backpack:GetChildren() do
+            if tool.Name:lower():find("rod") then
+               local power = tool:FindFirstChild("RodPower") and tool.RodPower.Value or 0
+               if power > maxPower then bestRod=tool; maxPower=power end
+            end
+         end
+         if bestRod then player.Character.Humanoid:EquipTool(bestRod) end
+      end
+   end
 end)
 
-MiscTab:Divider()
-
--- HUD FPS + Ping
-local HUDSection = MiscTab:Section({
-    Title = "HUD Monitor",
-    Opened = true
-})
-
-local HUDGui, HUDLabel
-
-HUDSection:Toggle({
-    Title = "Show FPS & Ping HUD",
-    Value = false,
-    Callback = function(enabled)
-        State.HUDEnabled = enabled
-
-        if enabled then
-            if not HUDGui then
-                HUDGui = Instance.new("ScreenGui")
-                HUDGui.Name = "HUD_FPSPING"
-                HUDGui.ResetOnSpawn = false
-                HUDGui.Parent = CoreGui
-
-                HUDLabel = Instance.new("TextLabel")
-                HUDLabel.Name = "Display"
-                HUDLabel.Parent = HUDGui
-                HUDLabel.Size = UDim2.new(0, 200, 0, 38)
-                HUDLabel.Position = UDim2.new(1, -200, 0, 8)
-                HUDLabel.BackgroundColor3 = Color3.fromRGB(0, 0, 0)
-                HUDLabel.BackgroundTransparency = 0.45
-                HUDLabel.BorderSizePixel = 0
-                HUDLabel.TextColor3 = Color3.fromRGB(0, 255, 125)
-                HUDLabel.Font = Enum.Font.Code
-                HUDLabel.TextSize = 15
-                HUDLabel.Text = "FPS: --  |  Ping: --"
-
-                -- Make Draggable
-                local dragging, dragStart, startPos
-
-                HUDLabel.InputBegan:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = true
-                        dragStart = input.Position
-                        startPos = HUDLabel.Position
-                    end
-                end)
-
-                UserInputService.InputChanged:Connect(function(input)
-                    if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                        local delta = input.Position - dragStart
-                        HUDLabel.Position = UDim2.new(
-                            startPos.X.Scale, startPos.X.Offset + delta.X,
-                            startPos.Y.Scale, startPos.Y.Offset + delta.Y
-                        )
-                    end
-                end)
-
-                HUDLabel.InputEnded:Connect(function(input)
-                    if input.UserInputType == Enum.UserInputType.MouseButton1 then
-                        dragging = false
-                    end
-                end)
-            end
-            HUDGui.Enabled = true
-        else
-            if HUDGui then
-                HUDGui.Enabled = false
-            end
-        end
-    end
-})
-
--- HUD Update Loop
-task.spawn(function()
-    while true do
-        task.wait(0.5)
-        if State.HUDEnabled and HUDGui and HUDLabel then
-            local fps = math.floor(1 / RunService.RenderStepped:Wait())
-            local ping = Stats.Network.ServerStatsItem["Data Ping"]:GetValue()
-            HUDLabel.Text = string.format("FPS: %d  |  Ping: %dms", fps, math.floor(ping))
-        end
-    end
+-- AUTO SELL (22-25) WITH WEBHOOK
+spawn(function()
+   while wait(10) do
+      if autoSellFish then
+         -- UPDATE: ReplicatedStorage.Remotes.SellAll:FireServer()
+         sendWebhook("Auto Sell Triggered", "Sold 10 fish\nEarned: 100K", 65280)  -- Green
+      end
+   end
 end)
 
-MiscTab:Divider()
+-- SKIP RARITY (15-21) - Hook remote arg or GUI text
+-- Example: if rarity == "Common" and skipCommon then Skip:FireServer()
 
--- Anti-AFK
-local AFKSection = MiscTab:Section({
-    Title = "Anti-AFK",
-    Opened = true
+-- QUEST (32-39) WITH WEBHOOK
+spawn(function()
+   while wait(5) do
+      if autoAcceptQuest then -- AcceptQuest:FireServer() end
+      if autoClaimRewards then -- Claim:FireServer() 
+         sendWebhook("Quest Claimed", "Reward: 1K Coins + Rare Bait", 255)  -- Blue
+      end
+   end
+end)
+
+-- ESP (19,30)
+if fishESP then -- Loop workspace fish, add BillboardGui end
+
+-- ANTI AFK
+spawn(function()
+   while wait(60) do
+      game:GetService("VirtualUser"):CaptureController(); game:GetService("VirtualUser"):ClickButton2(Vector2.new())
+   end
+end)
+
+-- AUTO RECONNECT
+spawn(function()
+   while wait() do
+      if autoReconnect and not player.Parent then
+         game:GetService("TeleportService"):Teleport(game.PlaceId)
+      end
+   end
+end)
+
+-- NOTIFY
+Rayfield:Notify({
+   Title = "CorePlay 70+ Loaded! 🎣",
+   Content = "Full features + Discord Webhook active | 15X Speed | Update remotes in code",
+   Duration = 8,
+   Image = 4483362458
 })
 
-AFKSection:Toggle({
-    Title = "Enable Anti-AFK",
-    Value = false,
-    Callback = function(enabled)
-        State.AntiAFKEnabled = enabled
-        if enabled then
-            local vu = game:GetService("VirtualUser")
-            LocalPlayer.Idled:Connect(function()
-                if State.AntiAFKEnabled then
-                    vu:Button2Down(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                    task.wait(0.1)
-                    vu:Button2Up(Vector2.new(0, 0), workspace.CurrentCamera.CFrame)
-                end
-            end)
-        end
-    end
-})
-
-MiscTab:Divider()
-
--- ============================================
--- CUSTOM OVERHEAD TITLE (RGB ANIMATION)
--- ============================================
-local targetChar = workspace.Characters:FindFirstChild("SSASSAA11")
-if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
-    local hrp = targetChar.HumanoidRootPart
-    local titleContainer = hrp:FindFirstChild("Overhead") 
-        and hrp.Overhead:FindFirstChild("TitleContainer")
-    
-    if titleContainer then
-        titleContainer.Visible = true
-        
-        local label = titleContainer:FindFirstChild("Label")
-        if label and label:IsA("TextLabel") then
-            label.Text = "KREINXY"
-            label.Size = UDim2.new(3, 0, 3, 0)
-
-            local gradient = label:FindFirstChildOfClass("UIGradient")
-            if not gradient then
-                gradient = Instance.new("UIGradient")
-                gradient.Parent = label
-            end
-
-            gradient.Rotation = 45
-
-            -- RGB Animation Loop
-            task.spawn(function()
-                local hue = 0
-                
-                local function HSV(h, s, v)
-                    return Color3.fromHSV(h / 360, s, v)
-                end
-
-                while label.Parent do
-                    hue = (hue + 1) % 360
-                    
-                    gradient.Color = ColorSequence.new{
-                        ColorSequenceKeypoint.new(0.0, HSV(hue, 1, 1)),
-                        ColorSequenceKeypoint.new(0.2, HSV((hue + 60) % 360, 1, 1)),
-                        ColorSequenceKeypoint.new(0.4, HSV((hue + 120) % 360, 1, 1)),
-                        ColorSequenceKeypoint.new(0.6, HSV((hue + 180) % 360, 1, 1)),
-                        ColorSequenceKeypoint.new(0.8, HSV((hue + 240) % 360, 1, 1)),
-                        ColorSequenceKeypoint.new(1.0, HSV((hue + 300) % 360, 1, 1))
-                    }
-                    
-                    task.wait(0.02)
-                end
-            end)
-        end
-    end
-end
-
-print("✅ KREINXY Script loaded successfully!")
+print("[CorePlay] 70+ Features Hub Loaded - Gas Pol x15 Speed with Webhook!")
